@@ -156,6 +156,34 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
     end
   end
 
+  describe "messages.batches.create" do
+    it "is blocked before it is sent when its requests' estimates add up past a limit, per_call applying to each" do
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.instrument(:anthropic)
+        config.pricing.overrides = { "claude-test" => { input: 100_000.0 } }
+        config.budgets.monthly = 2.5
+        config.budgets.per_call = 1.5
+        config.budgets.exceeded_behavior = :block_requests
+      end
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 0.0)
+      submit = WebMock.stub_request(:post, "https://api.anthropic.com/v1/messages/batches").to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: { id: "msgbatch_1", type: "message_batch", processing_status: "in_progress" }.to_json
+      )
+      message = { role: "user", content: "x" * 25 }
+      request = ->(id) { { custom_id: id, params: { model: "claude-test", max_tokens: 16, messages: [message] } } }
+
+      expect { client.messages.batches.create(requests: %w[a b c].map(&request)) }
+        .to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+          expect(error).to have_attributes(budget_type: :monthly, total: 3, stage: :pre_send)
+        }
+      expect(submit).not_to have_been_requested
+      client.messages.batches.create(requests: %w[a b].map(&request))
+      expect(submit).to have_been_requested.once
+    end
+  end
+
   describe "messages.batches.results_streaming" do
     let(:jsonl_body) do
       [

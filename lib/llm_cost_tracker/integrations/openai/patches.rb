@@ -125,6 +125,12 @@ module LlmCostTracker
       StreamingTranscriptionsPatch = PatchBuilder.build_stream(methods: %i[create_streaming])
 
       module BatchesPatch
+        def create(*args, **kwargs)
+          openai = LlmCostTracker::Integrations::Openai
+          openai.enforce_budget!(request: openai.request_params(args, kwargs))
+          super
+        end
+
         def retrieve(batch_id, *args, **kwargs)
           batch = super
           LlmCostTracker::Integrations::Openai::BatchCapture.maybe_capture(batch, resource: self)

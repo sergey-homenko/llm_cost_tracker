@@ -14,7 +14,7 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-Spend budgets evaluate only when an event has a known cost. Unknown-cost events are stored and surfaced on the Data Quality page, but they don't draw down a spend budget until pricing lands; a per-tag `calls` limit counts them.
+Spend budgets evaluate only when an event has a known cost. Unknown-cost events are stored and surfaced on the Data Quality page, but they don't draw down a spend budget until pricing lands; a per-tag `calls` limit counts them. When `backfill_unknown_pricing` or `reprice` pushes today's, this week's or this month's spend, or a `total`, over its limit, `on_exceeded` fires once for that crossing, whatever the behavior; nothing raises or blocks.
 
 ## Behaviors
 
@@ -22,11 +22,11 @@ Spend budgets evaluate only when an event has a known cost. Unknown-cost events 
 | --- | --- | --- |
 | `:notify` | After a priced event is recorded; for a `calls` limit, after any event | Calls `budgets.on_exceeded` once per budget type the event crossed (an event that pushes both daily and monthly over fires the callback twice — once per limit) |
 | `:raise` | After a priced event is recorded; for a `calls` limit, after any event | Raises `LlmCostTracker::BudgetExceededError` |
-| `:block_requests` | Before supported requests (for Faraday, `POST` only) and again after recording | Blocks the request when prior spend plus a character-count estimate of this call would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Preflight blocks do not fire `budgets.on_exceeded`; the callback only fires post-record on the event that first crossed the limit |
+| `:block_requests` | Before supported requests (for Faraday, `POST` only) and again after recording | Blocks the request when prior spend plus a character-count estimate of this call would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Preflight blocks do not fire `budgets.on_exceeded`; the callback fires post-record, as under `:notify` |
 
 `:raise` records first, then raises. The call that crossed the budget remains visible in the ledger. Every limit the call crossed, per-tag rules included, gets its `on_exceeded` call before the error for the first one is raised.
 
-`:block_requests` reads accumulated spend (see Budget Reads below) and also estimates the current call's input cost via a character-count heuristic (chars / 4 ≈ tokens, provider-agnostic, no external tokenizer). Base64 image, PDF and audio data is not counted. It blocks before send when prior spend plus the estimate would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Output tokens stay unknown pre-send and are caught by the existing post-record check. Approximate by design — runway-stop, not precise prediction. Unknown models (no pricing match) skip the estimate and fall through to the prior-spend preflight.
+`:block_requests` reads accumulated spend (see Budget Reads below) and also estimates the current call's input cost via a character-count heuristic (chars / 4 ≈ tokens, provider-agnostic, no external tokenizer). Base64 image, PDF and audio data is not counted. It blocks before send when prior spend plus the estimate would cross a daily / monthly limit, or when the estimate alone crosses `budgets.per_call`. Output tokens stay unknown pre-send and are caught by the existing post-record check. Approximate by design — runway-stop, not precise prediction. Unknown models (no pricing match) skip the estimate and fall through to the prior-spend preflight. Batch submissions through the openai and anthropic gems and Faraday are checked too: an Anthropic message batch adds up its requests' estimates and checks `budgets.per_call` against each request, and an OpenAI batch, whose requests sit in an uploaded file, is checked against prior spend alone.
 
 Under concurrency, multiple workers can clear preflight before each other's spend is visible. It stops the next request once overspend lands — it doesn't make provider spend transactional. Calls that land at the same moment can also fire `on_exceeded` twice for one crossing, and a call that commits after a later-stamped call was checked, such as one inside a slow transaction of your own or on a host whose clock runs ahead, can make the daily and monthly budgets fire twice or not at all. On MySQL, a call recorded inside your own transaction is checked against the snapshot that transaction took at its first read, so any budget can miss a crossing; record outside the transaction, or open it with `isolation: :read_committed`. With `ingestion.mode = :async`, per-tag rules fire once per crossing.
 
@@ -160,7 +160,7 @@ Budget aggregation assumes a single-currency ledger. The rollups table partition
 | `budget_type` | `:monthly`, `:daily`, `:per_call`, or — for a per-tag rule — `:weekly`, `:total` or `:calls` |
 | `total` | Observed total for the budget type. For `stage == :pre_send`: prior spend plus the call's estimate for daily / monthly, and the estimate alone for `per_call`. For `:calls`, `total` and `budget` are call counts, and pre-send `total` includes the call being checked. |
 | `budget` | Configured threshold |
-| `last_event` | Event that triggered the check when available (`nil` for `stage == :pre_send` because the call has not yet been made) |
+| `last_event` | Event that triggered the check when available (`nil` for `stage == :pre_send` because the call has not yet been made, and for a crossing caused by repricing) |
 | `stage` | `:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks |
 | `scope` | `{ key:, value: }` for a `budgets.per_tag` check, `nil` for the global budgets |
 

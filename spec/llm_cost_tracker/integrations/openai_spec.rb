@@ -571,6 +571,32 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
   end
 
+  describe "batches.create" do
+    it "is blocked before it is sent once prior spend reaches a limit under :block_requests" do
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.instrument(:openai)
+        config.budgets.monthly = 1.0
+        config.budgets.exceeded_behavior = :block_requests
+      end
+      submit = WebMock.stub_request(:post, "https://api.openai.com/v1/batches").to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: { id: "batch_1", object: "batch", endpoint: "/v1/chat/completions", status: "validating",
+                input_file_id: "file_in", completion_window: "24h", created_at: 1 }.to_json
+      )
+      params = { input_file_id: "file_in", endpoint: "/v1/chat/completions", completion_window: "24h" }
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 2.0)
+
+      expect { client.batches.create(**params) }.to raise_error(LlmCostTracker::BudgetExceededError) { |error|
+        expect(error).to have_attributes(budget_type: :monthly, stage: :pre_send)
+      }
+      expect(submit).not_to have_been_requested
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 0.5)
+      client.batches.create(**params)
+      expect(submit).to have_been_requested.once
+    end
+  end
+
   describe "batches.retrieve" do
     before do
       LlmCostTracker::Integrations::Openai::BatchCapture.instance_variable_set(:@dedup, nil)

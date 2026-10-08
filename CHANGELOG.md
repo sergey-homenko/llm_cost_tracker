@@ -82,6 +82,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `:block_requests` stops RubyLLM 2.x batch submissions, video and research jobs, RubyLLM 2.1 judgments and `RubyLLM.cache` before they are sent, and recording a cache's storage no longer raises a budget error after the cache is created.
 - `RubyLLM.cache` on Vertex AI records the cache's storage, as on the Gemini API.
 - `with_tags` in fibers sharing a thread, such as RubyLLM tools under `concurrency: :fibers`, no longer tags other fibers' calls or leaves its tags on the thread.
+- `:block_requests` checks batch submissions before they are sent: `batches.create` through the openai gem, `messages.batches.create` through the anthropic gem and `POST /v1/batches` through Faraday.
+- Faraday no longer checks the budget before Anthropic token counting or batch cancellation, which are free.
+- On MySQL, per-tag budgets read each tag value's own spend instead of merging values that differ only by case, accents or trailing spaces.
+- A budget pushed over its limit by `backfill_unknown_pricing` or `reprice`, the backfill after `prices:refresh` included, fires `on_exceeded` once.
 
 ## [0.14.2] - 2026-09-28
 

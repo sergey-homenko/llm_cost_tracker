@@ -14,6 +14,13 @@ module LlmCostTracker
       instances.find { |parser| parser.class.match?(url) }
     end
 
+    def self.batch_submission?(uri)
+      host = uri.host.to_s.downcase
+      uri.path.to_s.match?(%r{/(?:v1|openai)/batches\z}) &&
+        (Providers::Openai::Hosts::API_HOSTS.include?(host) || Providers::Azure::Hosts.openai?(host) ||
+         LlmCostTracker.configuration.capture.openai_compatible_providers.key?(host))
+    end
+
     def self.find_for_provider(provider)
       all_for_provider(provider).first
     end

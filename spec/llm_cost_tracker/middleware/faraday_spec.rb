@@ -1046,6 +1046,39 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(LlmCostTracker::Budget).not_to have_received(:enforce!)
   end
 
+  it "checks OpenAI-format batch submissions before they are sent, and not free batch cancels or token counts" do
+    error = LlmCostTracker::BudgetExceededError.new(budget_type: :monthly, total: 1.0, budget: 1.0)
+    allow(LlmCostTracker::Budget).to receive(:enforce!).and_raise(error)
+    checked = %w[
+      https://api.openai.com/v1/batches https://api.groq.com/openai/v1/batches
+      https://my-resource.openai.azure.com/openai/batches?api-version=2024-10-21
+    ]
+    free = %w[
+      https://api.openai.com/v1/batches/batch_1/cancel https://api.anthropic.com/v1/messages/batches/msgbatch_1/cancel
+      https://api.anthropic.com/v1/messages/count_tokens
+    ]
+    sent = []
+    conn = Faraday.new do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        (checked + free).each do |url|
+          stub.post(url) do
+            sent << url
+            [200, { "Content-Type" => "application/json" }, "{}"]
+          end
+        end
+      end
+    end
+
+    checked.each do |url|
+      expect { conn.post(url, { input_file_id: "file_in" }.to_json) }
+        .to raise_error(LlmCostTracker::BudgetExceededError)
+    end
+    free.each { |url| conn.post(url, { model: "claude-sonnet-4-5", messages: [] }.to_json) }
+
+    expect(sent).to eq(free)
+  end
+
   it "passes provider, model, and parsed request body to Budget.enforce! for pre-send estimation" do
     allow(LlmCostTracker::Budget).to receive(:enforce!)
 
