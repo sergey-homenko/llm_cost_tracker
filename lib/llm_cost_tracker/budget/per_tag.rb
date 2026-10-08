@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "limit"
+require_relative "../timing"
 require_relative "../ledger/isolation"
 require_relative "../ledger/schema/adapter"
 require_relative "../ledger/tags/encoding"
@@ -14,7 +16,15 @@ module LlmCostTracker
       SLOW_READ_SECONDS = 0.1
       DEFAULT_BACKFILL_BATCH = 5_000
 
-      Rule = Data.define(:key, :value, :windows, :behavior, :on_exceeded)
+      Rule = Data.define(:key, :value, :windows, :behavior, :on_exceeded) do
+        def limit(window)
+          Limit.new(budget_type: window,
+                    budget: windows.fetch(window),
+                    scope: { key: key, value: value },
+                    behavior: behavior,
+                    on_exceeded: on_exceeded)
+        end
+      end
 
       class << self
         def configured
@@ -63,26 +73,14 @@ module LlmCostTracker
         end
 
         def spend_by_value(key, values, window, bucket, upto = nil)
-          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          measure = window == :calls ? "1" : COST_COLUMN
-          total = "SUM(#{measure})"
-          upto_sum = "SUM(CASE WHEN #{TIME_COLUMN} <= ? THEN #{measure} ELSE 0 END)"
-          upto_total = upto ? LlmCostTracker::CallTag.sanitize_sql_array([upto_sum, upto]) : total
+          started_at = Timing.now_monotonic
+          aggregates = sum_columns(window, upto)
           totals = Ledger::Isolation.guard(LlmCostTracker::CallTag) do
-            rows = LlmCostTracker::CallTag.where(key: key, value: values)
-            rows = bucket ? rows.where(TIME_COLUMN => window_range(window, bucket)) : rows.where.not(TIME_COLUMN => nil)
-            column = :value
-            if Ledger::Schema::Adapter.mysql?(LlmCostTracker::CallTag.connection)
-              column = Arel.sql("CAST(value AS BINARY)")
-              rows = rows.where(column.in(values))
+            pluck_by_exact_value(spend_rows(key, values, window, bucket), values, aggregates).to_h do |value, *sums|
+              [value.dup.force_encoding(Encoding::UTF_8), sums.map { |sum| window == :calls ? sum.to_i : sum.to_d }]
             end
-            rows.group(column)
-                .pluck(column, Arel.sql(total), Arel.sql(upto_total))
-                .to_h do |value, *sums|
-                  [value.dup.force_encoding(Encoding::UTF_8), sums.map { |sum| window == :calls ? sum.to_i : sum.to_d }]
-                end
           end
-          warn_slow_read(key, window, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at)
+          warn_slow_read(key, window, Timing.now_monotonic - started_at)
           totals
         end
 
@@ -109,6 +107,28 @@ module LlmCostTracker
         end
 
         private
+
+        def sum_columns(window, upto)
+          measure = window == :calls ? "1" : COST_COLUMN
+          total = "SUM(#{measure})"
+          upto_sum = "SUM(CASE WHEN #{TIME_COLUMN} <= ? THEN #{measure} ELSE 0 END)"
+          upto_total = upto ? LlmCostTracker::CallTag.sanitize_sql_array([upto_sum, upto]) : total
+          [Arel.sql(total), Arel.sql(upto_total)]
+        end
+
+        def spend_rows(key, values, window, bucket)
+          rows = LlmCostTracker::CallTag.where(key: key, value: values)
+          bucket ? rows.where(TIME_COLUMN => window_range(window, bucket)) : rows.where.not(TIME_COLUMN => nil)
+        end
+
+        def pluck_by_exact_value(rows, values, aggregates)
+          column = :value
+          if Ledger::Schema::Adapter.mysql?(LlmCostTracker::CallTag.connection)
+            column = Arel.sql("CAST(value AS BINARY)")
+            rows = rows.where(column.in(values))
+          end
+          rows.group(column).pluck(column, *aggregates)
+        end
 
         def window_range(window, bucket)
           bucket...bucket.public_send(WINDOW_NEXTS.fetch(window))
