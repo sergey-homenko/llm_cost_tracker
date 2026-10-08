@@ -27,25 +27,29 @@ module LlmCostTracker
         }x
         RELEASE_SUFFIX = /-\d+-\d+\z/
         STATUS = /\A(?:Live\z|Legacy\b|Deprecated\b|Retired\b)/
+        UNCONFIRMED_NOTE = "- `cohere`: models.dev was unreachable or invalid, so no LiteLLM-only row was written"
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
-          @listed = listed_ids(html.fetch(MODELS_SOURCE_URL))
-          retired = @listed.select { |_id, status| status == "Retired" }.keys
-          official = official_models(html.fetch(self.class.source_url)).except(*retired)
+          read_overview(html.fetch(MODELS_SOURCE_URL))
+          official = official_models(html.fetch(self.class.source_url)).except(*@retired)
           rows = self.class.confirmed_rows("cohere", html, official, scraped_at)
-          models = official.reject { |_id, fields| fields.empty? }.merge(rows.to_h.except(*retired))
+          models = official.reject { |_id, fields| fields.empty? }.merge(rows.to_h.except(*@retired))
           validate!(models)
-          notes = rows ? [] : ["- `cohere`: models.dev was unreachable or invalid, so no LiteLLM-only row was written"]
-          Result.new(source_url:, scraped_at:, models:, deprecated_models: retired, service_charges: {}, notes:)
+          notes = rows ? [] : [UNCONFIRMED_NOTE]
+          Result.new(source_url:, scraped_at:, models:, deprecated_models: @retired, service_charges: {}, notes:)
         end
 
         private
 
+        def read_overview(page)
+          @listed = listed_ids(page)
+          @retired = @listed.select { |_id, status| status == "Retired" }.keys
+        end
+
         def official_models(page)
           rows = flight_rows(page)
-          cards = section(rows, "web3PricingSection").fetch("pricingGroups").flat_map { |group| group["models"].to_a }
-          prices = cards.filter_map { |card| (fields = card_prices(card)) && [api_id(card.fetch("modelName")), fields] }
-          (prices + faq_prices(section(rows, "web3AccordionSection"))).each_with_object({}) do |(id, fields), models|
+          prices = card_prices(section(rows, "web3PricingSection")) + faq_prices(section(rows, "web3AccordionSection"))
+          prices.each_with_object({}) do |(id, fields), models|
             raise Error, "Cohere prices #{id} twice" if models.key?(id)
 
             models[id] = fields
@@ -79,14 +83,22 @@ module LlmCostTracker
           end
         end
 
-        def card_prices(card)
+        def card_prices(pricing)
+          cards = pricing.fetch("pricingGroups").flat_map { |group| group["models"].to_a }
+          cards.filter_map { |card| (fields = card_fields(card)) && [api_id(card.fetch("modelName")), fields] }
+        end
+
+        def card_fields(card)
           pricing, *more = card["pricings"]
           name = card.fetch("modelName")
           raise Error, "Cohere lists several prices for #{name}" if more.any?
           return unless pricing
           return {} if card["per"] == "Free" && pricing.values_at("inputPrice", "outputPrice") == [0, 0]
 
-          unit = pricing["overridePer"] || card["per"]
+          side_fields(pricing, pricing["overridePer"] || card["per"], name)
+        end
+
+        def side_fields(pricing, unit, name)
           %w[input output].each_with_object({}) do |side, fields|
             price = pricing["#{side}Price"] or next
             label = pricing["#{side}Label"]
@@ -98,42 +110,61 @@ module LlmCostTracker
         end
 
         def faq_prices(faq)
-          blocks = hashes(faq).select { |node| node["_type"] == "block" }
-          blocks.map { |block| block["children"].to_a.map { |child| child["text"] }.join }
-                .select { |text| text.include?("/1M tokens") }.flat_map do |text|
+          faq_texts(faq).flat_map do |text|
             match = FAQ_PRICE.match(text) or raise Error, "Cohere FAQ price not understood: #{text}"
             fields = { "input" => Float(match[:input]), "output" => Float(match[:output]) }
-            names = match[:sizes]&.split(/,\s*|\s+and\s+/)&.map { |size| "#{match[:name]} #{size}" } || [match[:name]]
-            names.map { |name| [api_id(name, live: false), fields] }
+            faq_names(match).map { |name| [api_id(name, live: false), fields] }
           end
         end
 
-        def listed_ids(page)
-          ids = page.split(/^(?=\| Model Name )/).drop(1).each_with_object({}) do |table, listed|
-            header, _rule, *rows = table.lines.take_while { |line| line.start_with?("|") }
-                                        .map { |line| line.split("|").drop(1).map(&:strip) }
-            next unless header.include?("Description")
+        def faq_texts(faq)
+          hashes(faq).select { |node| node["_type"] == "block" }
+                     .map { |block| block["children"].to_a.map { |child| child["text"] }.join }
+                     .select { |text| text.include?("/1M tokens") }
+        end
 
+        def faq_names(match)
+          sizes = match[:sizes]&.split(/,\s*|\s+and\s+/) or return [match[:name]]
+          sizes.map { |size| "#{match[:name]} #{size}" }
+        end
+
+        def listed_ids(page)
+          ids = overview_tables(page).each_with_object({}) do |(header, rows), listed|
             column = header.index("Status")
-            rows.each do |cells|
-              id = cells.first[/\A`([^`]+)`\z/, 1] or
-                raise Error, "Cohere models overview row #{cells.first.inspect} names no API id"
-              listed[id] = ((column && cells[column]) || "Live")[STATUS] or
-                raise Error, "Cohere model status #{cells[column].inspect} not understood"
-            end
+            rows.each { |cells| listed[listed_id(cells)] = listed_status(cells, column) }
           end
           ids.any? ? ids : raise(Error, "Cohere models overview lists no API ids")
         end
 
+        def overview_tables(page)
+          page.split(/^(?=\| Model Name )/).drop(1).filter_map do |table|
+            header, _rule, *rows = table.lines.take_while { |line| line.start_with?("|") }
+                                        .map { |line| line.split("|").drop(1).map(&:strip) }
+            [header, rows] if header.include?("Description")
+          end
+        end
+
+        def listed_id(cells)
+          cells.first[/\A`([^`]+)`\z/, 1] or
+            raise Error, "Cohere models overview row #{cells.first.inspect} names no API id"
+        end
+
+        def listed_status(cells, column)
+          ((column && cells[column]) || "Live")[STATUS] or
+            raise Error, "Cohere model status #{cells[column].inspect} not understood"
+        end
+
         def api_id(name, live: true)
           key = name_key(name)
-          found = @listed.select do |id, _status|
-            [id, id.sub(RELEASE_SUFFIX, "")].any? { |listed| name_key(listed).last(key.size) == key }
-          end
+          found = @listed.select { |id, _status| named_by?(id, key) }
           ids = live && found.size > 1 ? found.select { |_id, status| status == "Live" }.keys : found.keys
           return ids.first if ids.one?
 
           raise Error, "no single API id on Cohere's models overview for #{name.inspect}: #{found.keys.inspect}"
+        end
+
+        def named_by?(id, key)
+          [id, id.sub(RELEASE_SUFFIX, "")].any? { |listed| name_key(listed).last(key.size) == key }
         end
 
         def name_key(text)

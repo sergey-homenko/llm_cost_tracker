@@ -79,10 +79,7 @@ def create_calls_table!(database_connection)
     t.integer :latency_ms
     t.boolean :stream, null: false, default: false
     t.string :usage_source
-    t.string :provider_response_id
-    t.string :provider_project_id
-    t.string :provider_api_key_id
-    t.string :provider_workspace_id
+    add_call_provider_columns(t)
     t.boolean :batch, null: false, default: false
     t.string :pricing_mode
     t.string :cost_status
@@ -106,6 +103,12 @@ end
 
 def add_call_cost_columns(table)
   table.decimal :total_cost, precision: 20, scale: 8
+end
+
+def add_call_provider_columns(table)
+  %i[provider_response_id provider_project_id provider_api_key_id provider_workspace_id].each do |column|
+    table.string column
+  end
 end
 
 def add_call_pricing_snapshot_column(table, database_connection)
@@ -213,24 +216,23 @@ def create_ingestion_leases_table!
 end
 
 def add_schema_indexes!(database_connection)
-  add_index :llm_cost_tracker_calls, :event_id, unique: true
-  add_index :llm_cost_tracker_calls, :tracked_at
-  add_index :llm_cost_tracker_calls, %i[provider tracked_at]
-  add_index :llm_cost_tracker_calls, %i[model tracked_at]
-  add_index :llm_cost_tracker_calls, :cost_status
-  add_index :llm_cost_tracker_calls, :provider_response_id
-  add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
-  add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
-  if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection)
-    add_index :llm_cost_tracker_call_tags, %i[key value tracked_at]
-  else
-    add_index :llm_cost_tracker_call_tags, %i[key value tracked_at], length: { value: 191 }
-  end
-  add_index :llm_cost_tracker_call_rollups, %i[period period_start currency provider], unique: true
-  add_index :llm_cost_tracker_ingestion_inbox_entries, :event_id, unique: true
-  add_index :llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts]
-  add_index :llm_cost_tracker_ingestion_inbox_entries, %i[locked_at id]
-  add_index :llm_cost_tracker_ingestion_leases, :name, unique: true
+  tag_value = LlmCostTracker::Ledger::Schema::Adapter.postgresql?(database_connection) ? {} : { length: { value: 191 } }
+  [
+    [:llm_cost_tracker_calls, :event_id, { unique: true }],
+    [:llm_cost_tracker_calls, :tracked_at, {}],
+    [:llm_cost_tracker_calls, %i[provider tracked_at], {}],
+    [:llm_cost_tracker_calls, %i[model tracked_at], {}],
+    [:llm_cost_tracker_calls, :cost_status, {}],
+    [:llm_cost_tracker_calls, :provider_response_id, {}],
+    [:llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position], {}],
+    [:llm_cost_tracker_call_tags, :llm_cost_tracker_call_id, {}],
+    [:llm_cost_tracker_call_tags, %i[key value tracked_at], tag_value],
+    [:llm_cost_tracker_call_rollups, %i[period period_start currency provider], { unique: true }],
+    [:llm_cost_tracker_ingestion_inbox_entries, :event_id, { unique: true }],
+    [:llm_cost_tracker_ingestion_inbox_entries, %i[tracked_at attempts], {}],
+    [:llm_cost_tracker_ingestion_inbox_entries, %i[locked_at id], {}],
+    [:llm_cost_tracker_ingestion_leases, :name, { unique: true }]
+  ].each { |table, columns, options| add_index table, columns, **options }
 end
 
 def create_database!(adapter, admin, database)

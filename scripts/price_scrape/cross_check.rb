@@ -8,6 +8,7 @@ require_relative "../../lib/llm_cost_tracker"
 require_relative "fetcher"
 require_relative "providers/gemini"
 require_relative "providers/litellm"
+require_relative "cross_check/comparison"
 
 module LlmCostTracker
   module Pricing::Scrape
@@ -35,47 +36,48 @@ module LlmCostTracker
         stale: "Stale acknowledgements"
       }.freeze
       ISSUE_SECTIONS = SECTIONS.keys - %i[unknown unrepresentable]
+      SECTION_LINES = {
+        notes: :note_lines, stale: :stale_lines, difference: :difference_lines, model: :provider_lines,
+        unconfirmed: :provider_lines, field: :field_gap_lines, unknown: :unknown_lines
+      }.freeze
       Finding = Data.define(:section, :model, :field, :detail)
 
       class Error < StandardError; end
 
-      def self.run(
-        report_path:,
-        issue_path:,
-        registry_path: REGISTRY_PATH,
-        acknowledged_path: ACKNOWLEDGED_PATH,
-        notes_path: nil,
-        fetcher: Fetcher.new,
-        sha: nil
-      )
-        sha ||= IO.popen(["git", "ls-remote", REPOSITORY, "refs/heads/main"], &:read)[/\A\h{40}/]
-        raise Error, "LiteLLM main commit not found" unless sha
+      class << self
+        def run(
+          report_path:,
+          issue_path:,
+          registry_path: REGISTRY_PATH,
+          acknowledged_path: ACKNOWLEDGED_PATH,
+          notes_path: nil,
+          fetcher: Fetcher.new,
+          sha: nil
+        )
+          sha ||= main_commit
+          check = new(registry: JSON.parse(File.read(registry_path)),
+                      catalogue: JSON.parse(fetcher.get(format(Providers::Litellm::PRICES_URL, sha)).body),
+                      models_dev: JSON.parse(fetcher.get(Providers::Litellm::MODELS_DEV_URL).body),
+                      acknowledged: YAML.safe_load_file(acknowledged_path) || {},
+                      notes: notes_path && File.exist?(notes_path) ? File.readlines(notes_path, chomp: true) : [])
+          File.write(report_path, check.report(sha))
+          File.write(issue_path, check.findings(ISSUE_SECTIONS))
+        end
 
-        check = new(registry: JSON.parse(File.read(registry_path)),
-                    catalogue: JSON.parse(fetcher.get(format(Providers::Litellm::PRICES_URL, sha)).body),
-                    models_dev: JSON.parse(fetcher.get(Providers::Litellm::MODELS_DEV_URL).body),
-                    acknowledged: YAML.safe_load_file(acknowledged_path) || {},
-                    notes: notes_path && File.exist?(notes_path) ? File.readlines(notes_path, chomp: true) : [])
-        File.write(report_path, check.report(sha))
-        File.write(issue_path, check.findings(ISSUE_SECTIONS))
+        private
+
+        def main_commit
+          IO.popen(["git", "ls-remote", REPOSITORY, "refs/heads/main"], &:read)[/\A\h{40}/] or
+            raise Error, "LiteLLM main commit not found"
+        end
       end
 
       def initialize(registry:, catalogue:, models_dev: {}, acknowledged: {}, notes: [], today: Date.today)
-        @ours = registry.fetch("models", {})
-        @absent = registry.dig("metadata", "absent_since") || {}
-        @notes = notes
-        @charges = registry.fetch("service_charges", {})
-        @conversion = Providers::Litellm.convert(catalogue)
+        comparison = Comparison.new(registry, catalogue, today).call(models_dev)
+        @findings = comparison.findings
+        @counts = comparison.counts
         @acknowledged = acknowledged
-        @today = today.iso8601
-        @counts = Hash.new { |counts, provider| counts[provider] = Hash.new(0) }
-        @findings = []
-        compare
-        confirm(models_dev)
-        @conversion.unknown.each { |name, models| models.each { |model| add(:unknown, model, name) } }
-        @conversion.unrepresentable.each do |reason, models|
-          models.each { |model| add(:unrepresentable, model, nil, reason) }
-        end
+        @notes = notes
       end
 
       def summary
@@ -91,7 +93,7 @@ module LlmCostTracker
       def findings(sections = SECTIONS.keys)
         open = reported.reject { |finding| acknowledgement(finding) }.group_by(&:section)
         SECTIONS.slice(*sections).filter_map do |section, title|
-          lines = lines(section, open)
+          lines = section_lines(section, open.fetch(section, []))
           "### #{title}\n\n#{lines.join("\n")}\n" if lines.any?
         end.join("\n")
       end
@@ -106,10 +108,6 @@ module LlmCostTracker
 
       private
 
-      def add(section, model, field = nil, detail = nil)
-        @findings << Finding.new(section:, model:, field:, detail:)
-      end
-
       def reported
         @findings.reject do |finding|
           provider = finding.model.split("/").first
@@ -122,103 +120,13 @@ module LlmCostTracker
         key if @acknowledged.key?(key)
       end
 
-      def stale
-        @acknowledged.keys - reported.filter_map { |finding| acknowledgement(finding) }
-      end
+      def section_lines(section, found) = send(SECTION_LINES.fetch(section, :detail_lines), found)
 
-      def compare
-        (@ours.keys + @conversion.models.keys).map { |key| key.split("/").first }.uniq.each do |provider|
-          ours = models_of(@ours, provider)
-          theirs = models_of(@conversion.models, provider)
-          (ours & theirs).each { |model| compare_model(provider, model) }
-          @counts[provider][:litellm_only] = (theirs - ours).size
-          @counts[provider][:ours_only] = (ours - theirs).size
-          gaps = FULLY_SCRAPED.include?(provider) ? (theirs - ours).select { |model| gap?(provider, model) } : []
-          gaps.each { |model| add(:model, model) }
-        end
-      end
+      def note_lines(_found) = @notes
 
-      def confirm(models_dev)
-        GATED.each do |provider|
-          listed = models_of(@ours, provider).reject { |key| @absent.key?(key) }
-          official = listed.reject { |key| @ours[key]["_source"] }
-          written = official.to_h { |key| [key.delete_prefix("#{provider}/"), @ours[key]] }
-          gate = Providers::Litellm.gate(provider, @conversion, models_dev, written, @today)
-          gate.held.reject { |model, _| listed.include?("#{provider}/#{model}") }.each do |model, (ours, theirs)|
-            add(:held, "#{provider}/#{model}", nil, "LiteLLM #{ours.join('/')}, models.dev #{theirs.join('/')}")
-          end
-          (gate.unconfirmed.map { |model| "#{provider}/#{model}" } - listed).each { |model| add(:unconfirmed, model) }
-        end
-      end
-
-      def compare_model(provider, model)
-        prices = @ours.fetch(model)
-        @conversion.models.fetch(model).each do |field, value|
-          next unless compared?(provider, field)
-
-          mine = our_value(provider, prices, field)
-          next add(:field, model, field) if mine.nil?
-
-          different = Providers::Litellm.differ?(mine, value)
-          @counts[provider][different ? :differ : :equal] += 1
-          add(:difference, model, field, [mine, value]) if different
-        end
-        uplift = Providers::Litellm.uplift(@conversion.entries.fetch(model))
-        return unless uplift && prices.keys.none? { |key| key.include?("data_residency") }
-
-        add(:field, model, "data_residency_*", uplift)
-      end
-
-      def compared?(provider, field)
-        field != Pricing::Registry::CONTEXT_THRESHOLD_KEY && !UNCOMPARED.fetch(provider, []).include?(field)
-      end
-
-      def our_value(provider, prices, field)
-        return prices[field] if prices.key?(field)
-
-        context, tier, dimension = TIERED_FIELD.match(field).values_at(:context, :tier, :dimension)
-        return @charges.dig(provider, field) unless context || tier
-        return unless tier && !%w[input output].include?(dimension)
-
-        standard, input, tier_input = prices.values_at(
-          "#{context}#{dimension}",
-          "#{context}input",
-          "#{context}#{tier}_input"
-        )
-        standard * tier_input / input if standard && tier_input && input.to_f.positive?
-      end
-
-      def gap?(provider, model)
-        fields = @conversion.models.fetch(model)
-        Providers::Litellm.current?(@conversion.entries.fetch(model), fields, @today) &&
-          !dated_twin?(provider, model, fields)
-      end
-
-      def dated_twin?(provider, model, fields)
-        return false unless model.match?(DATED_SUFFIX)
-
-        base = model.sub(DATED_SUFFIX, "")
-        return true if @conversion.models[base] == fields
-
-        ours = @ours[base]
-        return false unless ours
-
-        fields.none? do |field, value|
-          compared?(provider, field) && ours.key?(field) && Providers::Litellm.differ?(ours[field], value)
-        end
-      end
-
-      def lines(section, open)
-        found = open.fetch(section, [])
-        case section
-        when :notes then @notes
-        when :stale then stale.map { |key| "- `#{key}` no longer matches a finding" }
-        when :difference then difference_lines(found)
-        when :model, :unconfirmed then grouped(found) { |finding| finding.model.split("/").first }
-        when :field then field_gap_lines(found)
-        when :unknown then found.group_by(&:field).sort.map { |name, list| unknown_line(name, list) }
-        else grouped(found, &:detail)
-        end
+      def stale_lines(_found)
+        stale = @acknowledged.keys - reported.filter_map { |finding| acknowledgement(finding) }
+        stale.map { |key| "- `#{key}` no longer matches a finding" }
       end
 
       def difference_lines(found)
@@ -239,16 +147,18 @@ module LlmCostTracker
         gaps.group_by(&:last).map { |list, models| "- #{list.join(', ')}: #{models.map(&:first).sort.join(', ')}" }.sort
       end
 
-      def unknown_line(name, list)
-        "- `#{name}` (#{list.size}): #{list.map(&:model).first(3).join(', ')}"
+      def unknown_lines(found)
+        found.group_by(&:field).sort.map do |name, list|
+          "- `#{name}` (#{list.size}): #{list.map(&:model).first(3).join(', ')}"
+        end
       end
+
+      def provider_lines(found) = grouped(found) { |finding| finding.model.split("/").first }
+
+      def detail_lines(found) = grouped(found, &:detail)
 
       def grouped(found, &)
         found.group_by(&).sort.map { |label, list| "- #{label}: #{list.map(&:model).sort.join(', ')}" }
-      end
-
-      def models_of(table, provider)
-        table.keys.select { |key| key.start_with?("#{provider}/") }
       end
     end
   end

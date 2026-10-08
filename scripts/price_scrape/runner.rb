@@ -29,6 +29,7 @@ module LlmCostTracker
       }.freeze
 
       DEFAULT_REGISTRY_PATH = File.expand_path("../../lib/llm_cost_tracker/prices.json", __dir__)
+      CHANGES = %i[added removed updated service_charges_updated].freeze
 
       ProviderRun = Data.define(:name, :scraped, :orchestrator, :error)
 
@@ -67,33 +68,38 @@ module LlmCostTracker
       private
 
       def run_provider(name:, registry_path:, dry_run:)
-        provider_class = PROVIDERS.fetch(name)
-
-        responses = fetch_provider_responses(name, provider_class)
-        primary_response = responses.fetch(provider_class.source_url)
-
-        scraped = provider_class.new.call(
-          html: provider_html(responses),
-          source_url: primary_response.url,
-          scraped_at: primary_response.fetched_at
-        )
-        @io.puts "[#{name}] parsed #{scraped.models.size} models (deprecated: #{scraped.deprecated_models.size})"
-        scraped.notes.each { |note| @io.puts "[#{name}] #{note}" }
-
+        scraped = scrape(name)
         orchestrator_result = @orchestrator_factory.call(dry_run: dry_run).call(
           provider: name,
           provider_result: scraped,
           registry_path: registry_path,
           source_urls: canonical_source_urls
         )
-        orchestrator_result.notes.each { |note| @io.puts "[#{name}] #{note}" }
+        log_notes(name, orchestrator_result.notes)
         log_provider_result(name, orchestrator_result, dry_run: dry_run)
-
         ProviderRun.new(name: name, scraped: scraped, orchestrator: orchestrator_result, error: nil)
       rescue StandardError => e
         @io.puts "[#{name}] FAILED: #{e.class}: #{e.message}"
         e.backtrace.first(5).each { |line| @io.puts "[#{name}]   #{line}" }
         ProviderRun.new(name: name, scraped: nil, orchestrator: nil, error: e)
+      end
+
+      def scrape(name)
+        provider_class = PROVIDERS.fetch(name)
+        responses = fetch_provider_responses(name, provider_class)
+        primary_response = responses.fetch(provider_class.source_url)
+        scraped = provider_class.new.call(
+          html: provider_html(responses),
+          source_url: primary_response.url,
+          scraped_at: primary_response.fetched_at
+        )
+        @io.puts "[#{name}] parsed #{scraped.models.size} models (deprecated: #{scraped.deprecated_models.size})"
+        log_notes(name, scraped.notes)
+        scraped
+      end
+
+      def log_notes(name, notes)
+        notes.each { |note| @io.puts "[#{name}] #{note}" }
       end
 
       def write_notes(runs, path)
@@ -141,29 +147,23 @@ module LlmCostTracker
       end
 
       def log_provider_result(name, result, dry_run:)
-        prefix = "[#{name}]"
-        unless result.changed?
-          @io.puts "#{prefix} no changes"
-          return
-        end
+        return @io.puts("[#{name}] no changes") unless result.changed?
 
-        @io.puts "#{prefix} added=#{result.added.size} removed=#{result.removed.size} updated=#{result.updated.size} " \
-                 "service_charges_updated=#{result.service_charges_updated.size} absent=#{result.absent.size} " \
-                 "written=#{result.written} dry_run=#{dry_run}"
+        counts = change_counts([result], [*CHANGES, :absent])
+        @io.puts "[#{name}] #{counts} written=#{result.written} dry_run=#{dry_run}"
       end
 
       def log_summary(runs, dry_run:)
         failures, successes = runs.partition(&:error)
-        added = successes.sum { |run| run.orchestrator.added.size }
-        removed = successes.sum { |run| run.orchestrator.removed.size }
-        updated = successes.sum { |run| run.orchestrator.updated.size }
-        service_charges_updated = successes.sum { |run| run.orchestrator.service_charges_updated.size }
-        wrote = successes.count { |run| run.orchestrator.written }
+        results = successes.map(&:orchestrator)
         @io.puts(
           "[summary] providers=#{runs.size} ok=#{successes.size} failed=#{failures.size} " \
-          "wrote=#{wrote} added=#{added} removed=#{removed} updated=#{updated} " \
-          "service_charges_updated=#{service_charges_updated} dry_run=#{dry_run}"
+          "wrote=#{results.count(&:written)} #{change_counts(results, CHANGES)} dry_run=#{dry_run}"
         )
+      end
+
+      def change_counts(results, changes)
+        changes.map { |change| "#{change}=#{results.sum { |result| result.public_send(change).size }}" }.join(" ")
       end
     end
   end
