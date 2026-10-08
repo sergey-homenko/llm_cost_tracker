@@ -7,11 +7,11 @@ module LlmCostTracker
   module Budget
     module Tagged
       class << self
-        def enforce!(tags, estimate, time:, blocking_only:)
+        def enforce!(tags, estimated_cost, time:, blocking_only:)
           PerTag.rules_for(tags || Tags::Context.tags, blocking_only: blocking_only).each do |rule|
             rule.windows.each_key do |window|
               limit = rule.limit(window)
-              total = PerTag.spend(rule.key, rule.value, window, time: time) + limit.charge(estimate)
+              total = PerTag.spend(rule.key, rule.value, window, time: time) + limit.charge(estimated_cost)
               limit.block!(total) if limit.over?(total)
             end
           end
