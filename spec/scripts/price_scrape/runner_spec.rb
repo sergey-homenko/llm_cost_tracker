@@ -30,6 +30,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
   before do
     stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic.source_url)
       .to_return(status: 200, body: html, headers: { "Content-Type" => "text/html; charset=utf-8" })
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini::VERTEX_URL)
+      .to_return(status: 200, body: fixture("vertex_pricing.html"))
   end
 
   it "fetches, parses, and applies changes for the configured provider" do
@@ -276,8 +278,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
     stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini.source_url)
       .to_return(status: 200, body: "<html><body></body></html>",
                  headers: { "Content-Type" => "text/html; charset=utf-8" })
-    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini::VERTEX_URL)
-      .to_return(status: 200, body: "<html><body></body></html>")
 
     Tempfile.create(["registry", ".json"]) do |file|
       file.write(JSON.pretty_generate(build_registry(haiku_entry: { "input" => 1.0, "output" => 5.0 })))

@@ -5,6 +5,7 @@ require "nokogiri"
 require "time"
 
 require_relative "base"
+require_relative "gemini"
 
 module LlmCostTracker
   module Pricing::Scrape
@@ -15,6 +16,7 @@ module LlmCostTracker
         max_price 1000.0
         anchors "claude-fable-5", "claude-opus-4-7", "claude-sonnet-4-6"
 
+        SOURCE_URLS = [source_url, Gemini::VERTEX_URL].freeze
         DATA_RESIDENCY_MULTIPLIER = 1.1
         BATCH_MULTIPLIER = 0.5
 
@@ -30,16 +32,22 @@ module LlmCostTracker
           /\A(?<name>.+?)\s*(?<boundary>through|starting)\s+(?<date>[A-Z][a-z]+ \d{1,2}, \d{4})\z/
         RETIRED_NOTE = /"name":"([^"]+)","note":\{"kind":"lifecycle","label":"Retired","explanation":"([^"]*)"/
         PARTNER_SERVED = /\Aretired(, except on [A-Z][\w ]+)?\.\z/
+        PROMPT_TIER = /for prompts (up to|over) ([\d,]+) tokens/
+        VERTEX_LONG_CONTEXT_ROWS = {
+          "Input" => "input", "Output" => "output", "5m Cache Write" => "cache_write_input",
+          "1h Cache Write" => "cache_write_extended_input", "Cache Hit" => "cache_read_input"
+        }.freeze
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           @effective_on = Date.parse(scraped_at)
-          doc = Nokogiri::HTML(html.to_s)
+          doc = Nokogiri::HTML(html.fetch(self.class.source_url))
           base_table = find_table(doc, ["Base tokens Input", "5m writes", "Hits", "Base tokens Output"])
           raise Error, "Anthropic base pricing table not found" unless base_table
 
           base = extract_base_pricing(base_table)
           verify_batch_discount!(doc, base)
           deprecated = extract_deprecated_models(base_table, doc.text.delete("\\").scan(RETIRED_NOTE).to_h)
+          base = add_vertex_long_context(base, Nokogiri::HTML(html.fetch(Gemini::VERTEX_URL)))
           models = add_fast_mode_pricing(add_data_residency_pricing(add_batch_pricing(base)), doc)
           validate!(models)
           text = doc.text.gsub(/\s+/, " ")
@@ -110,19 +118,56 @@ module LlmCostTracker
         end
 
         def verify_batch_discount!(doc, base)
+          derived = add_batch_pricing(base)
           extract_batch_pricing(doc).each do |model_id, scraped|
-            fields = base[model_id]
-            next unless fields
-
-            expected_input = (fields.fetch("input") * BATCH_MULTIPLIER).round(6)
-            expected_output = (fields.fetch("output") * BATCH_MULTIPLIER).round(6)
-            next if scraped["batch_input"] == expected_input && scraped["batch_output"] == expected_output
+            expected = derived[model_id]&.slice(*scraped.keys)
+            next if expected.nil? || expected == scraped
 
             message = "Anthropic batch pricing for #{model_id} is no longer #{BATCH_MULTIPLIER} of base " \
-                      "(input #{scraped['batch_input']} vs #{expected_input}, " \
-                      "output #{scraped['batch_output']} vs #{expected_output})"
+                      "(#{scraped} vs #{expected})"
             raise Error, message
           end
+        end
+
+        def add_vertex_long_context(models, vertex)
+          vertex_long_context_rows(vertex).each_with_object(models.dup) do |(name, rows), priced|
+            next if rows.none? { |_field, (base, long)| long && long != base }
+
+            model_id = normalize_model_id(name)
+            next unless models.key?(model_id)
+            unless rows.size == VERTEX_LONG_CONTEXT_ROWS.size &&
+                   rows.all? { |field, (base, long)| long && base == models[model_id][field] }
+              raise Error, "Vertex AI long-context prices for #{name} do not extend Anthropic's: #{rows}"
+            end
+
+            priced[model_id] = models[model_id].merge(
+              rows.to_h { |field, (_base, long)| ["above_context_#{field}", long] },
+              Pricing::Registry::CONTEXT_THRESHOLD_KEY => 200_000
+            )
+          end
+        end
+
+        def vertex_long_context_rows(vertex)
+          table = vertex_global_claude_table(vertex)
+          headers = table.at_css("tr").css("th").map { |th| th.text.strip }
+          columns = ["=< 200K input tokens", "> 200K input tokens"].map { |label| column_index(headers, label) }
+          model = nil
+          table.css("tr").each_with_object({}) do |tr, rows|
+            cells = tr.css("td").map { |td| td.text.gsub(/\s+/, " ").strip }
+            next if cells.empty?
+
+            model = cells[0] unless cells[0].empty?
+            field = VERTEX_LONG_CONTEXT_ROWS[cells[1]]
+            (rows[model] ||= {})[field] = cells.values_at(*columns).map { |cell| cell[/\$([\d.]+)/, 1]&.to_f } if field
+          end
+        end
+
+        def vertex_global_claude_table(vertex)
+          tab = vertex.css("#anthropics-claude-models [role=tab]").find { |button| button.text.strip == "Global" }
+          table = tab && vertex.at_css("#anthropics-claude-models [aria-labelledby='#{tab['id']}'] table")
+          raise Error, "Vertex AI Claude Global pricing table not found" unless table
+
+          table
         end
 
         def find_table(doc, required_header_substrings)
@@ -132,17 +177,33 @@ module LlmCostTracker
           end
         end
 
-        def parse_table(table)
+        def parse_table(table, &)
           headers = header_texts(table)
           model_index = column_index(headers, "Model")
-          table.css("tbody tr").each_with_object({}) do |tr, acc|
-            tds = tr.css("td")
+          model_cell = nil
+          rows = table.css("tbody tr").filter_map do |tr|
+            tds = tr.css("td").to_a
+            tds.insert(model_index, model_cell) if model_cell && tds.size == headers.size - 1
             next if tds.size < headers.size
 
-            model_id = normalize_model_id(model_name(tds[model_index]))
-            next unless model_id
+            model_cell = tds[model_index]
+            model_id = normalize_model_id(model_name(model_cell))
+            [model_id, tds.map { |td| td.text.strip }] if model_id
+          end
+          rows.group_by(&:first).to_h do |model_id, tiers|
+            [model_id, prompt_tier_prices(model_id, tiers.map(&:last), headers, &)]
+          end
+        end
 
-            acc[model_id] = yield(tds.map { |td| td.text.strip }, headers)
+        def prompt_tier_prices(model_id, rows, headers)
+          case rows.map { |cells| cells.join(" ").match(PROMPT_TIER)&.captures }
+          in [nil] then yield(rows.first, headers)
+          in [["up to", tokens], ["over", ^tokens]]
+            above = yield(rows.last, headers).transform_keys { |field| "above_context_#{field}" }
+            threshold = { Pricing::Registry::CONTEXT_THRESHOLD_KEY => Integer(tokens.delete(",")) }
+            yield(rows.first, headers).merge(above, threshold)
+          else
+            raise Error, "Anthropic price rows for #{model_id} are not one row or an up-to and over prompt-length pair"
           end
         end
 
@@ -169,11 +230,9 @@ module LlmCostTracker
         end
 
         def add_batch_pricing(models)
-          models.each_with_object({}) do |(model_id, fields), priced|
-            priced[model_id] = fields.merge(
-              "batch_input" => (fields.fetch("input") * BATCH_MULTIPLIER).round(6),
-              "batch_output" => (fields.fetch("output") * BATCH_MULTIPLIER).round(6)
-            )
+          models.transform_values do |fields|
+            standard = fields.slice("input", "output", "above_context_input", "above_context_output")
+            fields.merge(mode_prices(standard, "batch", BATCH_MULTIPLIER))
           end
         end
 
@@ -248,12 +307,12 @@ module LlmCostTracker
           fields.each_with_object({}) do |(field, value), prices|
             next unless mode_price_field?(field, include_batch: include_batch)
 
-            prices["#{mode}_#{field}"] = (value * multiplier).round(6)
+            prices[field.sub(/\A(above_context_)?/, "\\1#{mode}_")] = (value * multiplier).round(6)
           end
         end
 
         def mode_price_field?(field, include_batch:)
-          pattern = include_batch ? /\A(?:batch_)?/ : /\A/
+          pattern = include_batch ? /\A(?:above_context_)?(?:batch_)?/ : /\A(?:above_context_)?/
           field.to_s.match?(
             /#{pattern.source}(?:input|output|cache_read_input|cache_write_input|cache_write_extended_input)\z/
           )

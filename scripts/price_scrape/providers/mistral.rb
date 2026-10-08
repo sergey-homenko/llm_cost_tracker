@@ -40,6 +40,7 @@ module LlmCostTracker
         }.freeze
         RETIRED_TABLE = "//h3[normalize-space()='Deprecated & retired models']/following::"
         CARD_NAMES = /\\"names\\":\[([^\]]*)\]/
+        CARD_MINUTE_PRICE = %r{\\"price\\":(\d+(?:\.\d+)?),\\"denominator\\":\\"/Min\\"}
         DATE = %r{\d{1,2}/\d{1,2}/\d{4}}
 
         def self.followup_urls(pages)
@@ -55,7 +56,7 @@ module LlmCostTracker
           retired, ambiguous = retirement(html.fetch(MODELS_SOURCE_URL), names, Date.parse(scraped_at))
           models = official_models(self.class.parse_json(html.fetch(SOURCE_URL)))
           rows = self.class.confirmed_rows("mistral", html, models, scraped_at)
-          rows &&= with_card_names(rows, names, models)
+          rows &&= with_card_minutes(with_card_names(rows, names, models, html), names, html)
           models = with_tiers(models.merge(rows.to_h.except(*retired, *ambiguous)), html)
           validate!(models.except(*retired))
           notes = (rows.to_h.keys & ambiguous).map do |id|
@@ -67,12 +68,25 @@ module LlmCostTracker
 
         private
 
-        def with_card_names(rows, names, models)
+        def with_card_names(rows, names, models, html)
           shared = names.values.flatten.tally.select { |_id, cards| cards > 1 }.keys
+          listed = JSON.parse(html.fetch(MODELS_DEV_URL)).dig("mistral", "models") || {}
           names.values.each_with_object(rows.dup) do |ids, named|
             own = ids - shared
             row = rows.values_at(*own).compact.first
-            (own - models.keys).each { |id| named[id] ||= row } if row
+            (own - models.keys).each { |id| named[id] ||= row if models_dev_agrees?(listed[id], row) } if row
+          end
+        end
+
+        def models_dev_agrees?(listing, row)
+          theirs = listing&.dig("cost")&.values_at("input", "output") or return true
+          row.values_at("input", "output").zip(theirs).none? { |pair| self.class.differ?(*pair.map(&:to_f)) }
+        end
+
+        def with_card_minutes(rows, names, html)
+          names.each_with_object(rows.dup) do |(card, ids), priced|
+            minute = html.fetch("#{MODELS_SOURCE_URL}/#{card}")[CARD_MINUTE_PRICE, 1] or next
+            (ids & rows.keys).each { |id| priced[id] = rows[id].merge("transcription_minute" => Float(minute)) }
           end
         end
 
@@ -145,18 +159,23 @@ module LlmCostTracker
         end
 
         def listed_prices(doc)
+          doc.css(".sr-only").remove
           doc.css("table").each_with_object({}) do |table, listed|
             fields = table.css("th").map { |header| PRICE_COLUMNS[header.text.strip] }
             table.css("tr").each do |row|
-              link = row.at_css("a[href^='/models/']")
-              prices = fields.zip(row.css("td")).filter_map do |field, cell|
-                price = PRICE.match(cell&.text.to_s.strip)
-                column, dimension = UNIT_COLUMNS.fetch(price[:unit], [field, field]) if price
-                [dimension, price[:free] ? 0.0 : Float(price[:amount])] if field && column == field
-              end.to_h
-              listed[link["href"].delete_prefix("/models/")] = prices if link
+              link = row.at_css("a[href^='/models/']") or next
+              prices = fields.zip(row.css("td")).filter_map { |field, cell| listed_price(field, cell) }.to_h
+              raise Error, "Mistral pricing row for #{link['href']} has no price the scraper reads" if prices.empty?
+
+              listed[link["href"].delete_prefix("/models/")] = prices
             end
           end
+        end
+
+        def listed_price(field, cell)
+          price = PRICE.match((cell&.at_css("ins") || cell)&.text.to_s.strip)
+          column, dimension = UNIT_COLUMNS.fetch(price[:unit], [field, field]) if price
+          [dimension, price[:free] ? 0.0 : Float(price[:amount])] if field && column == field
         end
       end
     end

@@ -10,6 +10,7 @@ module LlmCostTracker
       CHURN_PROVIDERS = %w[openrouter].freeze
       LISTED = 30
       FIELDS_PER_MODEL = 3
+      LEAD_FIELDS = ["input", "output", "cache_read_input", Pricing::Registry::CONTEXT_THRESHOLD_KEY].freeze
       VERDICTS = { red: "🛑 Do not merge yet", review: "⚠️ Review before merging", safe: "✅ Safe to merge" }.freeze
 
       def self.run(before_path:, after_path:, log_path:, summary_path:, title_path:)
@@ -55,7 +56,8 @@ module LlmCostTracker
           table,
           section("Red flags", @red_flags.map { |flag| "`#{flag}`" }),
           section("Official price changes", official_changes),
-          section("New official models", official(added).map { |key| "`#{key}`: #{prices(@after[key])}" }),
+          section("New official models", new_models(litellm: false)),
+          section("New models priced from LiteLLM", new_models(litellm: true)),
           section("Removed official models", official(removed).map { |key| "`#{key}`" })
         ].compact.join("\n\n") << "\n"
       end
@@ -115,9 +117,15 @@ module LlmCostTracker
         "#{"#{field} " if field}#{shown(from)} → #{shown(to)}#{delta}"
       end
 
+      def new_models(litellm:)
+        official(added).select { |key| (@after[key]["_source"] == "litellm") == litellm }
+                       .map { |key| "`#{key}`: #{prices(@after[key])}" }
+      end
+
       def prices(entry)
-        entry.reject { |field, _| field.start_with?("_") }.first(FIELDS_PER_MODEL)
-             .map { |field, value| "#{field} #{value}" }.join(", ")
+        lead = entry.slice(*LEAD_FIELDS)
+        shown = lead.any? ? lead : entry.reject { |field, _| field.start_with?("_") }.first(FIELDS_PER_MODEL)
+        shown.map { |field, value| "#{field} #{value}" }.join(", ")
       end
 
       def shown(value)

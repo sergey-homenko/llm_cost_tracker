@@ -386,7 +386,7 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
 
     described_class.call
 
-    expect([regional.reload.total_cost, global.reload.total_cost]).to eq([4.95, 4.5])
+    expect([regional.reload.total_cost, global.reload.total_cost]).to eq([9.075, 8.25])
     expect([regional.pricing_mode, global.pricing_mode]).to eq(["data_residency", nil])
   end
 
