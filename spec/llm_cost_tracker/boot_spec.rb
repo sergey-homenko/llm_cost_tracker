@@ -47,6 +47,19 @@ RSpec.describe "LlmCostTracker boot" do
     expect(status).to be_success, output
   end
 
+  it "aliases the engine namespace under the name a host acronym camelizes it to" do
+    inflections = ActiveSupport::Inflector.inflections(:en)
+    acronyms = inflections.acronyms.values
+    inflections.acronym("LLM")
+    Rails.application.reloader.prepare!
+
+    expect(Object.const_get(:LLMCostTracker)).to be(LlmCostTracker)
+  ensure
+    Object.send(:remove_const, :LLMCostTracker) if Object.const_defined?(:LLMCostTracker, false)
+    inflections.clear(:acronyms)
+    acronyms.each { |acronym| inflections.acronym(acronym) }
+  end
+
   it "force-loads every gem file the way a production boot does, without raising" do
     expect do
       Rails.application.eager_load!
