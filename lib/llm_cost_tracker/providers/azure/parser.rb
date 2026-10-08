@@ -5,10 +5,12 @@ module LlmCostTracker
     module Azure
       class Parser < LlmCostTracker::Parsers::Base
         include Openai::ResponseParser
+        include Openai::StreamParser
 
         PATH_PATTERN = %r{
           \A/openai/(?:deployments/[^/]+|v1)/(?:#{Openai::Parser::TRACKED_ENDPOINTS.join('|')}|responses/resp_[^/]+)\z
         }x
+        DEPLOYMENT_PATH_PATTERN = %r{/openai/deployments/([^/]+)/}
 
         class << self
           def match?(url)
@@ -27,12 +29,7 @@ module LlmCostTracker
         end
 
         def model_for(request_url, request_parsed)
-          body_model = super
-          return body_model if body_model
-
-          uri = parsed_uri(request_url)
-          match = uri&.path&.match(%r{/openai/deployments/([^/]+)/})
-          match && match[1]
+          super || parsed_uri(request_url)&.path.to_s[DEPLOYMENT_PATH_PATTERN, 1]
         end
 
         def auto_enable_stream_usage?(request_url, request_parsed)

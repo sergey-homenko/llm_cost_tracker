@@ -15,38 +15,9 @@ module LlmCostTracker
         return bundled_check unless path
         return Check.new(:error, "prices", "#{path} does not exist; #{REFRESH_COMMAND}") unless File.exist?(path)
 
-        count = LlmCostTracker::Pricing::Registry.file_prices(path).size
-        metadata = LlmCostTracker::Pricing::Registry.file_metadata(path)
-        updated_at = metadata["updated_at"] || metadata[:updated_at]
-        return configured_check(:warn, path, count, "metadata.updated_at missing; #{REFRESH_COMMAND}") unless updated_at
-
-        file_date = Date.iso8601(updated_at.to_s)
-        if (Date.today - file_date).to_i > STALE_AFTER_DAYS
-          return configured_check(
-            :warn,
-            path,
-            count,
-            "updated_at=#{updated_at} is older than #{STALE_AFTER_DAYS} days; #{REFRESH_COMMAND}"
-          )
-        end
-        bundled_at = LlmCostTracker::Pricing::Registry.metadata["updated_at"]
-        if bundled_at && file_date < Date.iso8601(bundled_at.to_s)
-          return configured_check(
-            :warn,
-            path,
-            count,
-            "updated_at=#{updated_at} is older than the bundled prices (#{bundled_at}); #{REFRESH_COMMAND}"
-          )
-        end
-
-        configured_check(:ok, path, count, "updated_at=#{updated_at}")
-      rescue Date::Error
-        configured_check(
-          :warn,
-          path,
-          count,
-          "metadata.updated_at=#{updated_at.inspect} is invalid; #{REFRESH_COMMAND}"
-        )
+        count = Pricing::Registry.file_prices(path).size
+        status, freshness = freshness(Pricing::Registry.file_metadata(path))
+        Check.new(status, "prices", "loaded #{count} models from #{path}; #{freshness}")
       rescue LlmCostTracker::Error => e
         Check.new(:error, "prices", e.message)
       end
@@ -54,7 +25,7 @@ module LlmCostTracker
       private
 
       def bundled_check
-        updated_at = LlmCostTracker::Pricing::Registry.metadata.fetch("updated_at", "unknown")
+        updated_at = Pricing::Registry.metadata.fetch("updated_at", "unknown")
         Check.new(
           :warn,
           "prices",
@@ -63,8 +34,26 @@ module LlmCostTracker
         )
       end
 
-      def configured_check(status, path, count, freshness)
-        Check.new(status, "prices", "loaded #{count} models from #{path}; #{freshness}")
+      def freshness(metadata)
+        updated_at = metadata["updated_at"] || metadata[:updated_at]
+        return [:warn, "metadata.updated_at missing; #{REFRESH_COMMAND}"] unless updated_at
+
+        reason = staleness(updated_at)
+        reason ? [:warn, "#{reason}; #{REFRESH_COMMAND}"] : [:ok, "updated_at=#{updated_at}"]
+      rescue Date::Error
+        [:warn, "metadata.updated_at=#{updated_at.inspect} is invalid; #{REFRESH_COMMAND}"]
+      end
+
+      def staleness(updated_at)
+        file_date = Date.iso8601(updated_at.to_s)
+        if (Date.today - file_date).to_i > STALE_AFTER_DAYS
+          return "updated_at=#{updated_at} is older than #{STALE_AFTER_DAYS} days"
+        end
+
+        bundled_at = Pricing::Registry.metadata["updated_at"]
+        return unless bundled_at && file_date < Date.iso8601(bundled_at.to_s)
+
+        "updated_at=#{updated_at} is older than the bundled prices (#{bundled_at})"
       end
     end
   end

@@ -6,19 +6,16 @@ module LlmCostTracker
   module Integrations
     module Openai
       module BatchCapture
+        FINISHED_STATUSES = %w[completed expired cancelled].freeze
         DEDUP_LIMIT = 1024
         MUTEX = Mutex.new
-        private_constant :DEDUP_LIMIT, :MUTEX
+        private_constant :FINISHED_STATUSES, :DEDUP_LIMIT, :MUTEX
 
         class << self
-          def maybe_capture(batch, resource:)
-            return unless Openai.active?
-            return unless %w[completed expired cancelled].include?(batch.status.to_s)
-            return unless batch.output_file_id && batch.id
-            return if captured?(batch.id)
+          def capture(batch, client:)
+            return unless Openai.active? && capturable?(batch)
 
-            client = resource.instance_variable_get(:@client)
-            host = Openai.client_host_for(resource)
+            host = Openai.client_host(client)
             Openai.record_safely do
               jsonl = client.files.content(batch.output_file_id).read
               deferred = capture_jsonl(jsonl, host: host, model: batch.model)
@@ -28,6 +25,10 @@ module LlmCostTracker
           end
 
           private
+
+          def capturable?(batch)
+            FINISHED_STATUSES.include?(batch.status.to_s) && batch.output_file_id && batch.id && !captured?(batch.id)
+          end
 
           def captured?(batch_id)
             MUTEX.synchronize { @dedup&.include?(batch_id) || false }
@@ -51,7 +52,7 @@ module LlmCostTracker
               next unless response.is_a?(Hash) && response["usage"]
 
               record_result({ "id" => entry["id"] }.merge(response), host: host, model: model)
-            rescue LlmCostTracker::BudgetExceededError, LlmCostTracker::UnknownPricingError => e
+            rescue BudgetExceededError, UnknownPricingError => e
               deferred ||= e
             end
             deferred
@@ -65,22 +66,23 @@ module LlmCostTracker
 
           def record_result(response, host:, model:)
             provider = Openai.provider_for_host(host)
-            return if LlmCostTracker::Call.already_recorded?(provider: provider, provider_response_id: response["id"])
+            return if Call.already_recorded?(provider: provider, provider_response_id: response["id"])
 
-            parser = LlmCostTracker::Providers::Openai::ResponseParser
-            event = parser.event_from_response(
+            event = Providers::Openai::ResponseParser.event_from_response(
               response: response,
               request: { "model" => model },
               provider: provider,
               host: host,
-              usage_source: LlmCostTracker::Usage::Source::SDK_BATCH_RESULT,
-              pricing_mode: parser.combined_pricing_mode(
-                host: (host if host.to_s.match?(/\A(?:us|eu)\./i)),
-                model: response["model"] || model,
-                service_tier: "batch"
-              )
+              usage_source: Usage::Source::SDK_BATCH_RESULT,
+              pricing_mode: batch_pricing_mode(host, response["model"] || model)
             )
             Openai.record_once(event)
+          end
+
+          def batch_pricing_mode(host, model)
+            Providers::Openai::ResponseParser.combined_pricing_mode(
+              host: (host if host.to_s.match?(/\A(?:us|eu)\./i)), model: model, service_tier: "batch"
+            )
           end
         end
       end

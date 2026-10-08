@@ -54,28 +54,28 @@
         <aside class="lct-sidebar" aria-label="Dashboard">
           <div class="lct-sidebar-inner">
           <div class="lct-sidebar-section">Insights</div>
-          <%= link_to root_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :overview) || "lct-sidebar-link", aria: (dashboard_section == :overview ? { current: "page" } : {}) do %>
+          <%= link_to root_path, sidebar_link_options(:overview) do %>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
             Overview
           <% end %>
-          <%= link_to models_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :models) || "lct-sidebar-link", aria: (dashboard_section == :models ? { current: "page" } : {}) do %>
+          <%= link_to models_path, sidebar_link_options(:models) do %>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
             Models
           <% end %>
-          <%= link_to calls_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :calls) || "lct-sidebar-link", aria: (dashboard_section == :calls ? { current: "page" } : {}) do %>
+          <%= link_to calls_path, sidebar_link_options(:calls) do %>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             Calls
           <% end %>
-          <%= link_to tags_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :tags) || "lct-sidebar-link", aria: (dashboard_section == :tags ? { current: "page" } : {}) do %>
+          <%= link_to tags_path, sidebar_link_options(:tags) do %>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
             Tags
           <% end %>
-          <%= link_to data_quality_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :data_quality) || "lct-sidebar-link", aria: (dashboard_section == :data_quality ? { current: "page" } : {}) do %>
+          <%= link_to data_quality_path, sidebar_link_options(:data_quality) do %>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             Data Quality
           <% end %>
           <div class="lct-sidebar-section">Reference</div>
-          <%= link_to pricing_path, class: ("lct-sidebar-link lct-active" if dashboard_section == :pricing) || "lct-sidebar-link", aria: (dashboard_section == :pricing ? { current: "page" } : {}) do %>
+          <%= link_to pricing_path, sidebar_link_options(:pricing) do %>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             Pricing
           <% end %>

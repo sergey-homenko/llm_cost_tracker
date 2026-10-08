@@ -11,9 +11,8 @@ module LlmCostTracker
       end
 
       def report(checks = call)
-        (["LLM Cost Tracker capture verification"] + checks.map do |check|
-          "[#{check.status}] #{check.name}: #{check.message}"
-        end).join("\n")
+        lines = checks.map { |check| "[#{check.status}] #{check.name}: #{check.message}" }
+        ["LLM Cost Tracker capture verification", *lines].join("\n")
       end
 
       def healthy?(checks = call)

@@ -32,15 +32,15 @@ module LlmCostTracker
 
         def canonicalize(value, json:)
           case value
-          when Hash
-            value.sort_by { |key, _| key.to_s }.to_h { |key, nested| [key, canonicalize(nested, json: json)] }
-          when Array
-            value.map { |element| canonicalize(element, json: json) }
-          when BigDecimal, Float
-            json && defined?(JSON::Fragment) ? JSON::Fragment.new(value.to_f.to_s) : value.to_f
-          else
-            value
+          when Hash then value.sort_by { |key, _| key.to_s }.to_h { |key, item| [key, canonicalize(item, json: json)] }
+          when Array then value.map { |item| canonicalize(item, json: json) }
+          when BigDecimal, Float then canonical_number(value, json: json)
+          else value
           end
+        end
+
+        def canonical_number(value, json:)
+          json && defined?(JSON::Fragment) ? JSON::Fragment.new(value.to_f.to_s) : value.to_f
         end
 
         def merge_with_existing(path:, registry:)

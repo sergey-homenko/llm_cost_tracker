@@ -24,15 +24,7 @@ module LlmCostTracker
         return if @overflowed || type&.start_with?("logprobs.")
 
         event = { event: type, data: strip_heavy_payload(@trim ? @trim.call(data) : data) }
-        size = approximate_bytesize(event)
-        if @head.size < HEAD_EVENTS
-          @head << [event, size]
-        else
-          @tail << [event, size]
-          settle(@tail.shift) if @tail.size > TAIL_EVENTS
-        end
-        @bytes += size
-        overflow! if @bytes > SSE::LIMIT_BYTES
+        append([event, approximate_bytesize(event)])
       rescue TypeError, SystemStackError
         overflow!
       end
@@ -46,6 +38,17 @@ module LlmCostTracker
       end
 
       private
+
+      def append(entry)
+        if @head.size < HEAD_EVENTS
+          @head << entry
+        else
+          @tail << entry
+          settle(@tail.shift) if @tail.size > TAIL_EVENTS
+        end
+        @bytes += entry.last
+        overflow! if @bytes > SSE::LIMIT_BYTES
+      end
 
       def settle(entry)
         return @kept << entry if notable?(entry.first[:data])

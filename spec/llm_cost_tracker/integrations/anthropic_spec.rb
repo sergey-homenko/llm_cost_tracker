@@ -199,7 +199,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
     end
 
     it "records each succeeded batch result as a ledger event with batch pricing_mode and skips errored ones" do
-      WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_xyz/results}).to_return(
+      WebMock.stub_request(:get, %r{https://api\.anthropic\.com/v1/messages/batches/batch_xyz/results}).to_return(
         status: 200,
         body: jsonl_body,
         headers: { "Content-Type" => "application/x-jsonl" }
@@ -260,8 +260,38 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       end
     end
 
+    it "keeps the SDK stream's own methods on the results it wraps" do
+      WebMock.stub_request(:get, %r{https://api\.anthropic\.com/v1/messages/batches/batch_xyz/results}).to_return(
+        status: 200,
+        body: jsonl_body,
+        headers: { "Content-Type" => "application/x-jsonl", "request-id" => "req_results" }
+      )
+
+      results = client.messages.batches.results_streaming("batch_xyz")
+
+      expect(results).to respond_to(:request_id)
+      expect(results.request_id).to eq("req_results")
+      expect(results.each).to be_an(Enumerator)
+      expect { results.not_a_stream_method }.to raise_error(NoMethodError)
+    end
+
+    it "returns the SDK's own results stream while tracking is disabled" do
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.enabled = false
+        config.instrument(:anthropic)
+      end
+      WebMock.stub_request(:get, %r{https://api\.anthropic\.com/v1/messages/batches/batch_xyz/results}).to_return(
+        status: 200,
+        body: jsonl_body,
+        headers: { "Content-Type" => "application/x-jsonl" }
+      )
+
+      expect(client.messages.batches.results_streaming("batch_xyz")).to be_an_instance_of(Anthropic::Internal::JsonLStream)
+    end
+
     it "skips a batch result whose provider_response_id already lives in the ledger so a second iteration is a no-op" do
-      WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_xyz/results}).to_return(
+      WebMock.stub_request(:get, %r{https://api\.anthropic\.com/v1/messages/batches/batch_xyz/results}).to_return(
         status: 200,
         body: jsonl_body,
         headers: { "Content-Type" => "application/x-jsonl" }

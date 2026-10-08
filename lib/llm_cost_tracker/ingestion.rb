@@ -16,6 +16,8 @@ module LlmCostTracker
     autoload :Worker, "llm_cost_tracker/ingestion/worker"
 
     VERIFY_TAG = "llm_cost_tracker_verify"
+    CAPTURE_CHECK = "active_record capture"
+    MISSING_CALLS_TABLE = "llm_cost_tracker_calls table is missing; run install generator and migrate"
 
     class << self
       def table_name_prefix
@@ -23,9 +25,7 @@ module LlmCostTracker
       end
 
       def ensure_current_schema!
-        unless LlmCostTracker::Call.table_exists?
-          raise Error, "llm_cost_tracker_calls table is missing; run install generator and migrate"
-        end
+        raise Error, MISSING_CALLS_TABLE unless LlmCostTracker::Call.table_exists?
 
         guards_for_current_config.each do |schema_module, table_name|
           next if schema_module == Ledger::Schema::CallRollups && !Ledger::Rollups.cache_active?
@@ -51,13 +51,7 @@ module LlmCostTracker
 
       def verify
         unless LlmCostTracker::Call.table_exists?
-          return [
-            LlmCostTracker::Check.new(
-              :error,
-              "active_record",
-              "llm_cost_tracker_calls table is missing; run install generator and migrate"
-            )
-          ]
+          return [LlmCostTracker::Check.new(:error, "active_record", MISSING_CALLS_TABLE)]
         end
 
         [capture_check]
@@ -72,7 +66,6 @@ module LlmCostTracker
         response_id = "lct_verify_#{SecureRandom.hex(8)}"
         notifications = []
         subscription = subscribe_to_verification(response_id, notifications)
-
         event = LlmCostTracker.track(
           provider: provider,
           model: model,
@@ -81,21 +74,9 @@ module LlmCostTracker
           tags: { feature: VERIFY_TAG }
         )
         LlmCostTracker::Ingestion::Worker.flush! if async?
-        persisted = LlmCostTracker::Call.where(provider_response_id: response_id).exists?
-
-        return capture_success if persisted && notifications.any?
-
-        LlmCostTracker::Check.new(
-          :error,
-          "active_record capture",
-          capture_failure_message(persisted, notifications)
-        )
-      rescue LlmCostTracker::BudgetExceededError => e
-        LlmCostTracker::Check.new(:error, "active_record capture", "blocked by budget guardrail: #{e.message}")
-      rescue LlmCostTracker::Error => e
-        LlmCostTracker::Check.new(:error, "active_record capture", e.message)
+        capture_result(LlmCostTracker::Call.where(provider_response_id: response_id).exists?, notifications)
       rescue StandardError => e
-        LlmCostTracker::Check.new(:error, "active_record capture", "#{e.class}: #{e.message}")
+        LlmCostTracker::Check.new(:error, CAPTURE_CHECK, capture_error_message(e))
       ensure
         cleanup_verification_call(response_id) if response_id
         cleanup_verification_inbox(event: event, response_id: response_id)
@@ -108,20 +89,24 @@ module LlmCostTracker
         end
       end
 
-      def capture_success
-        path = async? ? "async inbox" : "inline writer"
-        LlmCostTracker::Check.new(
-          :ok,
-          "active_record capture",
-          "manual event emitted and persisted through #{path}"
-        )
-      end
+      def capture_result(persisted, notifications)
+        if persisted && notifications.any?
+          path = async? ? "async inbox" : "inline writer"
+          return LlmCostTracker::Check.new(:ok, CAPTURE_CHECK, "manual event emitted and persisted through #{path}")
+        end
 
-      def capture_failure_message(persisted, notifications)
         missing = []
         missing << "notification" if notifications.empty?
         missing << "persisted row" unless persisted
-        "missing #{missing.join(' and ')} for synthetic manual event"
+        LlmCostTracker::Check.new(:error, CAPTURE_CHECK, "missing #{missing.join(' and ')} for synthetic manual event")
+      end
+
+      def capture_error_message(error)
+        case error
+        when LlmCostTracker::BudgetExceededError then "blocked by budget guardrail: #{error.message}"
+        when LlmCostTracker::Error then error.message
+        else "#{error.class}: #{error.message}"
+        end
       end
 
       def cleanup_verification_call(response_id)

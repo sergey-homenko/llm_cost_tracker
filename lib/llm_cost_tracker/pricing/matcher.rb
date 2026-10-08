@@ -8,7 +8,18 @@ require_relative "registry"
 module LlmCostTracker
   module Pricing
     module Matcher
-      Match = Data.define(:source, :key, :prices, :matched_by)
+      Match = Data.define(:source, :key, :prices, :matched_by) do
+        def rate(amount, quantity, source_key)
+          Rate.new(
+            amount: amount,
+            quantity: quantity,
+            currency: source.currency,
+            source: source.name,
+            source_key: source_key,
+            source_version: source.version
+          )
+        end
+      end
 
       CACHE_LIMIT = 2048
       BEDROCK_ANTHROPIC_ID = /\A(?:[a-z]+\.)?anthropic\.(claude-.+?)(?:-v\d+(?::\d+)?)?\z/
@@ -22,14 +33,11 @@ module LlmCostTracker
           return nil if model_name.empty?
 
           sources = Registry.sources
-          reset_cache(sources) unless @cache_sources.equal?(sources)
           date = at.getutc.to_date.iso8601
-          key = [provider_name, model_name, date].freeze
-          return @cache[key] if @cache.key?(key)
-
-          @cache.clear if @cache.size >= CACHE_LIMIT
-          @cache[key] = lookup_match(sources, provider_name, model_name)&.then do |match|
-            match.with(prices: prices_on(match.prices, date))
+          cached(sources, [provider_name, model_name, date].freeze) do
+            lookup_match(sources, provider_name, model_name)&.then do |match|
+              match.with(prices: prices_on(match.prices, date))
+            end
           end
         end
 
@@ -53,6 +61,14 @@ module LlmCostTracker
         end
 
         private
+
+        def cached(sources, key)
+          reset_cache(sources) unless @cache_sources.equal?(sources)
+          return @cache[key] if @cache.key?(key)
+
+          @cache.clear if @cache.size >= CACHE_LIMIT
+          @cache[key] = yield
+        end
 
         def reset_cache(sources)
           @cache_sources = sources

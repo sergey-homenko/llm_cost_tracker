@@ -28,11 +28,12 @@ This module can orchestrate other modules, but should not contain provider parsi
 Primary files:
 
 - `lib/llm_cost_tracker/middleware/faraday.rb`
+- `lib/llm_cost_tracker/middleware/faraday/*` (per-request exchange, body reading, `on_data` tee, response reader)
 - `lib/llm_cost_tracker/capture/stream_tracker.rb`
 - `lib/llm_cost_tracker/capture/stream_collector.rb`
 - `lib/llm_cost_tracker/event.rb`
 - `lib/llm_cost_tracker/parsers.rb` (registry + base parser)
-- `lib/llm_cost_tracker/providers/<vendor>/parser.rb`
+- `lib/llm_cost_tracker/providers/<vendor>/*.rb` (parser plus its usage, charge and grounding helpers)
 
 Responsibilities:
 
@@ -105,6 +106,7 @@ Primary files:
 - `lib/llm_cost_tracker/tracker.rb`
 - `lib/llm_cost_tracker/event.rb`
 - `lib/llm_cost_tracker/budget.rb`
+- `lib/llm_cost_tracker/budget/*` (pre-send estimate, limits, global and per-tag checks)
 
 Responsibilities:
 

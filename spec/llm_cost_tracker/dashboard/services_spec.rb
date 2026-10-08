@@ -435,6 +435,16 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(budget[:projected_delta]).to be > 0
     end
 
+    it "marks the fill as over budget once monthly spend reaches the budget" do
+      allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 16, 0, 0, 0))
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 12.0)
+      LlmCostTracker.configure { |config| config.budgets.monthly = 10.0 }
+
+      expect(described_class.status).to include(
+        fill_modifier: "lct-budget-fill--over", progress_percent: 100.0, projected_delta_direction: "over"
+      )
+    end
+
     it "builds under-budget projection state when monthly spend is zero" do
       now = Time.utc(2026, 4, 16, 0, 0, 0)
       allow(Time).to receive(:now).and_return(now)
@@ -527,6 +537,12 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(alert.fetch(:latest_spend)).to eq(12.0)
       expect(alert.fetch(:baseline_mean)).to eq(1.0)
       expect(alert.fetch(:ratio)).to eq(12.0)
+    end
+
+    it "stays quiet when the latest day is within the prior seven-day baseline" do
+      8.times { |offset| create_call(total_cost: 1.0, tracked_at: Time.utc(2026, 4, 13 + offset, 12)) }
+
+      expect(described_class.call(from: Date.new(2026, 4, 13), to: Date.new(2026, 4, 20))).to be_nil
     end
 
     it "flags an evening spike on the app's local day" do
@@ -924,6 +940,22 @@ RSpec.describe "LlmCostTracker dashboard services" do
       expect(LlmCostTracker::Dashboard::DataQuality.call.untagged_calls_count.to_i).to eq(2)
     end
 
+    it "orders values by the requested column and falls back to spend for unknown sorts" do
+      create_call(total_cost: 1.0, tags: { feature: "b" })
+      create_call(total_cost: 1.0, tags: { feature: "b" })
+      create_call(total_cost: 5.0, tags: { feature: "a" })
+      create_call(total_cost: 0.5, tags: { feature: "c" })
+      values = lambda do |sort, direction|
+        described_class.call(key: "feature", sort: sort, direction: direction).rows.map(&:value)
+      end
+
+      expect(values.call("value", "asc")).to eq(%w[a b c])
+      expect(values.call("value", "desc")).to eq(%w[c b a])
+      expect(values.call("calls", nil)).to eq(%w[b a c])
+      expect(values.call("avg_cost", "asc")).to eq(%w[c b a])
+      expect(values.call("bogus", "sideways")).to eq(%w[a b c])
+    end
+
     it "returns empty rows when no calls carry the tag key" do
       create_call(tags: { other: "missing" })
 
@@ -1000,6 +1032,22 @@ RSpec.describe "LlmCostTracker dashboard services" do
 
       expect(captured_sql).to include("llm_cost_tracker_call_tags")
       expect(captured_sql).to include("LIMIT 100")
+    end
+  end
+
+  describe LlmCostTracker::Dashboard::CallsExport do
+    it "exports the relation in order with formula-safe text and the MySQL skip-scan hint" do
+      create_call(model: "=cmd", tracked_at: Time.utc(2026, 4, 18, 12))
+      create_call(model: "plain", tracked_at: Time.utc(2026, 4, 18, 13))
+      allow(LlmCostTracker::Ledger::Schema::Adapter).to receive(:mysql?).and_return(true)
+
+      csv = nil
+      statements = capture_llm_cost_tracker_call_selects do
+        csv = described_class.call(LlmCostTracker::Call.order(id: :desc), limit: 5, batch_size: 1)
+      end
+
+      expect(CSV.parse(csv).drop(1).map { |row| row[2] }).to eq(["plain", "'=cmd"])
+      expect(statements.grep(/NO_SKIP_SCAN/).size).to eq(1)
     end
   end
 

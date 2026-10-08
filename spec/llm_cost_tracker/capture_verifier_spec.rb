@@ -37,6 +37,17 @@ RSpec.describe LlmCostTracker::CaptureVerifier do
     expect(described_class.healthy?(checks)).to be false
   end
 
+  it "renders one line per check under the report title" do
+    checks = [
+      LlmCostTracker::Check.new(:ok, "tracking", "enabled"),
+      LlmCostTracker::Check.new(:error, "active_record", "missing")
+    ]
+
+    expect(described_class.report(checks)).to eq(
+      "LLM Cost Tracker capture verification\n[ok] tracking: enabled\n[error] active_record: missing"
+    )
+  end
+
   it "reports enabled SDK integration checks" do
     LlmCostTracker.configure { |config| config.instrument :openai }
 

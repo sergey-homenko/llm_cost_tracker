@@ -5,6 +5,7 @@ module LlmCostTracker
     module Openai
       class Parser < LlmCostTracker::Parsers::Base
         include ResponseParser
+        include StreamParser
 
         TRACKED_ENDPOINTS = %w[
           chat/completions completions embeddings moderations responses responses/compact

@@ -9,6 +9,8 @@ module LlmCostTracker
       ].freeze
       HOST_DERIVED_MODIFIERS = %w[data_residency].freeze
       MAX_PERMUTED_MODIFIERS = 6
+      TOKEN = /#{Regexp.union(KNOWN_MODIFIERS)}(?=_|\z)|[^_]+/
+      private_constant :TOKEN
 
       def self.normalize(value)
         mode = value.to_s.strip.downcase.tr("-", "_")
@@ -35,24 +37,7 @@ module LlmCostTracker
       end
 
       def self.tokenize(value)
-        remaining = value.to_s.downcase.tr("-", "_")
-        tokens = []
-        loop do
-          break if remaining.empty?
-
-          known = KNOWN_MODIFIERS.find do |modifier|
-            remaining == modifier || remaining.start_with?("#{modifier}_")
-          end
-          if known
-            tokens << known
-            remaining = remaining.delete_prefix(known).delete_prefix("_")
-          else
-            first, _, rest = remaining.partition("_")
-            tokens << first unless first.empty?
-            remaining = rest
-          end
-        end
-        tokens
+        value.to_s.downcase.tr("-", "_").scan(TOKEN)
       end
 
       def self.permutations_for(value)

@@ -42,21 +42,20 @@ module LlmCostTracker
       def initialize(scope:, limit:, sort: DEFAULT_SORT, direction: nil)
         @scope = scope
         @limit = limit
-        @sort = DEFAULT_DIRECTIONS.key?(sort.to_s) ? sort.to_s : DEFAULT_SORT
-        @direction = Sort::DIRECTIONS.include?(direction.to_s) ? direction.to_s : DEFAULT_DIRECTIONS[@sort]
+        @order = Sort.resolve(sort, direction, natural_directions: DEFAULT_DIRECTIONS, fallback: DEFAULT_SORT)
       end
 
       def rows
         scope
           .group(:provider, :model)
           .select(selects)
-          .order(*ORDER_NODES.fetch([sort, direction]))
+          .order(*ORDER_NODES.fetch([order.column, order.direction]))
           .then { |r| limit ? r.limit(limit) : r }
       end
 
       private
 
-      attr_reader :scope, :limit, :sort, :direction
+      attr_reader :scope, :limit, :order
 
       def selects
         columns = [

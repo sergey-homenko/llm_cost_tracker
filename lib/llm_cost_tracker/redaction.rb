@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "uri"
+
 module LlmCostTracker
   module Redaction
     REDACTED = "[REDACTED]"
@@ -27,6 +29,17 @@ module LlmCostTracker
            .gsub(HEADER, "\\1#{REDACTED}")
            .gsub(PARAM, "\\1=#{REDACTED}")
            .gsub(EMBEDDED_TOKEN, REDACTED)
+    end
+
+    def self.url(value)
+      uri = URI.parse(value.to_s)
+      uri.query = nil
+      uri.fragment = nil
+      uri.user = nil
+      uri.password = nil
+      uri.to_s
+    rescue URI::InvalidURIError
+      value.to_s.split("?", 2).first
     end
   end
 end

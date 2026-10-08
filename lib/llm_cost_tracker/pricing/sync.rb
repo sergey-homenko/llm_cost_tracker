@@ -2,13 +2,12 @@
 
 require "active_support/core_ext/object/blank"
 require "date"
-require "json"
-require "rubygems"
 
 require_relative "registry"
 require_relative "sync/fetcher"
 require_relative "sync/registry_diff"
 require_relative "sync/registry_writer"
+require_relative "sync/remote_snapshot"
 require_relative "sync/snapshot_guard"
 
 module LlmCostTracker
@@ -75,51 +74,13 @@ module LlmCostTracker
 
         private
 
-        def normalize_remote_registry(body, url:, response:, today:)
-          registry = parse_registry(body)
-          metadata = registry.fetch("metadata", {})
-          raise Error, "remote pricing metadata must be a hash" unless metadata.is_a?(Hash)
-
-          schema_version = Integer(metadata.fetch("schema_version", 1))
-          if schema_version > SUPPORTED_SCHEMA_VERSION
-            raise Error, "remote pricing schema_version=#{schema_version} requires a newer llm_cost_tracker"
-          end
-
-          min_gem_version = metadata["min_gem_version"]
-          if min_gem_version && Gem::Version.new(min_gem_version) > Gem::Version.new(LlmCostTracker::VERSION)
-            raise Error, "remote pricing snapshot requires llm_cost_tracker >= #{min_gem_version}"
-          end
-
-          raw_models = registry.fetch("models", {})
-          models = Registry.normalize_price_entries(raw_models, context: "remote pricing snapshot")
-                           .each_with_object({}) do |(model, prices), normalized|
-            model_metadata = (raw_models[model] || {}).slice(*Registry::METADATA_KEYS)
-            normalized[model] = model_metadata.merge(prices)
-          end
-          service_charges = registry["service_charges"]
-          Registry.rates_from_registry(registry, context: "remote pricing snapshot") if service_charges
-
-          normalized = {
-            "metadata" => metadata.merge(
-              "schema_version" => schema_version,
-              "updated_at" => metadata["updated_at"] || today.iso8601,
-              "source_url" => Redaction.text(url),
-              "source_version" => response.source_version
-            ),
-            "models" => models
-          }
-          normalized["service_charges"] = service_charges if service_charges.present?
-          normalized
-        rescue ArgumentError, TypeError => e
-          raise Error, "Unable to load remote pricing snapshot: #{e.message}"
-        end
-
         def compare(path, url, fetcher, today)
           current = load_registry(path)
           response = fetcher.get(url, etag: current.dig("metadata", "source_version"))
           return [response, nil, {}, []] if response.not_modified
 
-          remote = normalize_remote_registry(response.body, url: url, response: response, today: today)
+          snapshot = RemoteSnapshot.new(response.body)
+          remote = snapshot.registry(url: url, source_version: response.source_version, today: today)
           changes = registry_changes(current, remote)
           [response, remote, changes, SnapshotGuard.call(current: current, remote: remote, changes: changes)]
         end
@@ -130,15 +91,6 @@ module LlmCostTracker
           YAML.safe_load_file(path, aliases: false) || {}
         rescue Psych::Exception, ArgumentError, TypeError => e
           raise Error, "Unable to load pricing registry #{path.inspect}: #{e.message}"
-        end
-
-        def parse_registry(body)
-          registry = JSON.parse(body.to_s)
-          raise Error, "remote pricing snapshot must be a JSON object" unless registry.is_a?(Hash)
-
-          registry
-        rescue JSON::ParserError => e
-          raise Error, "Unable to parse remote pricing snapshot: #{e.message}"
         end
 
         def refuse_suspicious_snapshot!(path, suspicious)

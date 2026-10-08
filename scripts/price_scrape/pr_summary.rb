@@ -33,9 +33,8 @@ module LlmCostTracker
         @charges = charges.flat_map do |provider, fields|
           fields.map { |field, values| ["#{provider}.#{field}", values] }
         end
-        guarded = charges.any? ? @changes.merge("service_charges" => charges) : @changes
-        @red_flags = Pricing::Sync::SnapshotGuard.call(current: before, remote: after, changes: guarded)
-        @unlisted = after.dig("metadata", "absent_since").to_h.keys - before.dig("metadata", "absent_since").to_h.keys
+        @red_flags = red_flags(before, after, charges)
+        @unlisted = absent_keys(after) - absent_keys(before)
       end
 
       def verdict
@@ -50,19 +49,18 @@ module LlmCostTracker
       end
 
       def markdown
-        [
-          "## #{VERDICTS.fetch(verdict)}",
-          reasons.map { |reason| "- #{reason}" }.join("\n"),
-          table,
-          section("Red flags", @red_flags.map { |flag| "`#{flag}`" }),
-          section("Official price changes", official_changes),
-          section("New official models", new_models(litellm: false)),
-          section("New models priced from LiteLLM", new_models(litellm: true)),
-          section("Removed official models", official(removed).map { |key| "`#{key}`" })
-        ].compact.join("\n\n") << "\n"
+        ["## #{VERDICTS.fetch(verdict)}", reasons.map { |reason| "- #{reason}" }.join("\n"), table, *sections]
+          .compact.join("\n\n") << "\n"
       end
 
       private
+
+      def red_flags(before, after, charges)
+        changes = charges.any? ? @changes.merge("service_charges" => charges) : @changes
+        Pricing::Sync::SnapshotGuard.call(current: before, remote: after, changes:)
+      end
+
+      def absent_keys(registry) = registry.dig("metadata", "absent_since").to_h.keys
 
       def reasons
         lines = []
@@ -81,13 +79,25 @@ module LlmCostTracker
         providers = (@changes.keys + added + removed + @unlisted).map { |key| key.split("/").first }.uniq.sort
         return if providers.empty?
 
-        rows = providers.map do |provider|
-          counts = [updated, added, removed, @unlisted].map do |keys|
-            keys.count { |key| key.start_with?("#{provider}/") }
-          end
-          "| #{provider} | #{counts.join(' | ')} |"
-        end
+        rows = providers.map { |provider| table_row(provider) }
         ["| Provider | New prices | Added | Removed | No longer listed |", "|---|---|---|---|---|", *rows].join("\n")
+      end
+
+      def table_row(provider)
+        counts = [updated, added, removed, @unlisted].map do |keys|
+          keys.count { |key| key.start_with?("#{provider}/") }
+        end
+        "| #{provider} | #{counts.join(' | ')} |"
+      end
+
+      def sections
+        {
+          "Red flags" => @red_flags.map { |flag| "`#{flag}`" },
+          "Official price changes" => official_changes,
+          "New official models" => new_models(litellm: false),
+          "New models priced from LiteLLM" => new_models(litellm: true),
+          "Removed official models" => official(removed).map { |key| "`#{key}`" }
+        }.map { |title, lines| section(title, lines) }
       end
 
       def section(title, lines)
@@ -103,12 +113,18 @@ module LlmCostTracker
       end
 
       def official_changes
-        @official_changes ||= official(updated).map do |key|
-          fields = @changes.fetch(key).sort_by { |field, _| [field.length, field] }
-                           .map { |field, values| change(field, values) }
-          more = fields.size - FIELDS_PER_MODEL
-          "`#{key}`: #{fields.first(FIELDS_PER_MODEL).join(', ')}#{", #{more} more fields" if more.positive?}"
-        end + @charges.reject { |name, _| churn?(name) }.map { |name, values| "`#{name}`: #{change(nil, values)}" }
+        @official_changes ||= official(updated).map { |key| model_change(key) } + charge_changes
+      end
+
+      def model_change(key)
+        fields = @changes.fetch(key).sort_by { |field, _| [field.length, field] }
+                         .map { |field, values| change(field, values) }
+        more = fields.size - FIELDS_PER_MODEL
+        "`#{key}`: #{fields.first(FIELDS_PER_MODEL).join(', ')}#{", #{more} more fields" if more.positive?}"
+      end
+
+      def charge_changes
+        @charges.reject { |name, _| churn?(name) }.map { |name, values| "`#{name}`: #{change(nil, values)}" }
       end
 
       def change(field, values)

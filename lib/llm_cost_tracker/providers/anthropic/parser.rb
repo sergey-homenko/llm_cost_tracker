@@ -45,35 +45,24 @@ module LlmCostTracker
           return nil unless response_status == 200
 
           request = symbolize_request(request_body)
-          model = find_event_value(events) { |data| data.dig("message", "model") } || request[:model]
           usage = stream_usage(events)&.deep_symbolize_keys
-          response_id = find_event_value(events) { |data| data.dig("message", "id") || data["id"] }
+          message = {
+            model: find_event_value(events) { |data| data.dig("message", "model") } || request[:model],
+            provider_response_id: find_event_value(events) { |data| data.dig("message", "id") || data["id"] }
+          }
+          host = parsed_uri(request_url)&.host
+          return unknown_stream_event(request: request, host: host, **message) unless usage
 
-          if usage
-            ResponseParser.event_from_usage(
-              usage: usage,
-              model: model,
-              provider_response_id: response_id,
-              usage_source: Usage::Source::STREAM_FINAL,
-              request: request,
-              stream: true,
-              content: content_blocks(events),
-              host: parsed_uri(request_url)&.host,
-              **stop_fields(final_delta(events))
-            )
-          else
-            build_unknown_stream_usage(
-              provider: "anthropic",
-              model: model,
-              provider_response_id: response_id,
-              pricing_mode: UsageExtractor.pricing_mode(
-                request: request,
-                usage: usage,
-                host: parsed_uri(request_url)&.host,
-                model: model
-              )
-            )
-          end
+          ResponseParser.event_from_usage(
+            usage: usage,
+            usage_source: Usage::Source::STREAM_FINAL,
+            request: request,
+            stream: true,
+            content: content_blocks(events),
+            host: host,
+            **message,
+            **stop_fields(final_delta(events))
+          )
         end
 
         def provider_for(_request_url)
@@ -88,6 +77,15 @@ module LlmCostTracker
 
         def symbolize_request(request_body)
           safe_json_parse(request_body).deep_symbolize_keys
+        end
+
+        def unknown_stream_event(model:, provider_response_id:, request:, host:)
+          build_unknown_stream_usage(
+            provider: "anthropic",
+            model: model,
+            provider_response_id: provider_response_id,
+            pricing_mode: UsageExtractor.pricing_mode(request: request, usage: nil, host: host, model: model)
+          )
         end
 
         def final_delta(events)

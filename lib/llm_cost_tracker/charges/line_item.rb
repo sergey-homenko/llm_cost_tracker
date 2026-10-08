@@ -30,29 +30,17 @@ module LlmCostTracker
     )
 
     class LineItem
+      DIMENSION_FIELDS = %i[kind direction modality cache_state unit].freeze
+      DIMENSION_DEFAULTS = { cache_state: "none" }.freeze
+      AMOUNT_DEFAULTS = {
+        quantity: BigDecimal("0"), rate_amount: nil, rate_quantity: BigDecimal("1"), cost: nil
+      }.freeze
+      SOURCE_FIELDS = %i[pricing_basis price_key price_source].freeze
+      private_constant :DIMENSION_FIELDS, :DIMENSION_DEFAULTS, :AMOUNT_DEFAULTS, :SOURCE_FIELDS
+
       def self.build(attributes)
         attributes = attributes.to_h
-        dimension = dimension_for(attributes)
-        new(
-          kind: attributes[:kind]&.to_s || dimension&.kind,
-          direction: attributes[:direction]&.to_s || dimension&.direction,
-          modality: attributes[:modality]&.to_s || dimension&.modality,
-          cache_state: attributes[:cache_state]&.to_s || dimension&.cache_state || "none",
-          quantity: decimal_or_nil(attributes[:quantity]) || BigDecimal("0"),
-          unit: attributes[:unit]&.to_s || dimension&.unit,
-          rate_amount: decimal_or_nil(attributes[:rate_amount]),
-          rate_quantity: decimal_or_nil(attributes[:rate_quantity]) || BigDecimal("1"),
-          cost: decimal_or_nil(attributes[:cost]),
-          currency: canonical_currency(attributes[:currency]),
-          cost_status: cost_status_for(attributes),
-          pricing_basis: attributes[:pricing_basis]&.to_s,
-          price_key: attributes[:price_key]&.to_s,
-          price_source: attributes[:price_source]&.to_s,
-          price_source_version: attributes[:price_source_version],
-          provider_field: attributes[:provider_field],
-          provider_item_id: attributes[:provider_item_id],
-          details: attributes[:details] || {}
-        )
+        new(**dimension_fields(attributes), **amount_fields(attributes), **source_fields(attributes))
       end
 
       def self.from_token_usage(token_usage)
@@ -77,14 +65,28 @@ module LlmCostTracker
         end
       end
 
-      def self.cost_status_for(attributes)
-        explicit = attributes[:cost_status]
-        return explicit.to_s if explicit
+      def self.dimension_fields(attributes)
+        dimension = dimension_for(attributes).to_h
+        DIMENSION_FIELDS.to_h do |field|
+          [field, attributes[field]&.to_s || dimension[field] || DIMENSION_DEFAULTS[field]]
+        end
+      end
 
-        cost = decimal_or_nil(attributes[:cost])
-        return CostStatus::UNKNOWN if cost.nil?
+      def self.amount_fields(attributes)
+        amounts = AMOUNT_DEFAULTS.to_h { |field, default| [field, decimal_or_nil(attributes[field]) || default] }
+        amounts.merge(
+          currency: (attributes[:currency] || LlmCostTracker::DEFAULT_CURRENCY).to_s.upcase,
+          cost_status: (attributes[:cost_status] || CostStatus.for_cost(amounts[:cost])).to_s
+        )
+      end
 
-        cost.zero? ? CostStatus::FREE : CostStatus::COMPLETE
+      def self.source_fields(attributes)
+        SOURCE_FIELDS.to_h { |field| [field, attributes[field]&.to_s] }.merge(
+          price_source_version: attributes[:price_source_version],
+          provider_field: attributes[:provider_field],
+          provider_item_id: attributes[:provider_item_id],
+          details: attributes[:details] || {}
+        )
       end
 
       def self.dimension_for(attributes)
@@ -100,11 +102,7 @@ module LlmCostTracker
         BigDecimal(value.to_s)
       end
 
-      def self.canonical_currency(value)
-        (value || LlmCostTracker::DEFAULT_CURRENCY).to_s.upcase
-      end
-
-      private_class_method :cost_status_for, :dimension_for, :decimal_or_nil, :canonical_currency
+      private_class_method :dimension_fields, :amount_fields, :source_fields, :dimension_for, :decimal_or_nil
 
       def billable?
         quantity.positive?
@@ -139,7 +137,7 @@ module LlmCostTracker
           rate_quantity: rate.quantity,
           cost: applied_cost,
           currency: rate.currency.upcase,
-          cost_status: applied_cost.zero? ? CostStatus::FREE : CostStatus::COMPLETE,
+          cost_status: CostStatus.for_cost(applied_cost),
           price_key: rate.source_key,
           price_source: rate.source,
           price_source_version: rate.source_version

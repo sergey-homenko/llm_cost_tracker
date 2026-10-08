@@ -18,12 +18,12 @@ module LlmCostTracker
             deep_freeze(key)
             deep_freeze(nested_value)
           end
-          value.frozen? ? value : value.freeze
+          value.freeze
         when Array, Set
           value.each { |nested_value| deep_freeze(nested_value) }
-          value.frozen? ? value : value.freeze
+          value.freeze
         when String
-          value.frozen? ? value : value.freeze
+          value.freeze
         else
           value
         end

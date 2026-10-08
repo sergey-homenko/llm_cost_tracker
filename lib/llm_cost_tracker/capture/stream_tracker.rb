@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "active_support/core_ext/object/try"
-
 module LlmCostTracker
   module Capture
     class StreamTracker
@@ -20,10 +18,7 @@ module LlmCostTracker
 
         iterator = @stream.instance_variable_get(:@iterator)
         if iterator.respond_to?(:each)
-          @stream.instance_variable_set(:@iterator,
-                                        Enumerator.new do |yielder|
-                                          each_from(iterator) { |event| yielder << event }
-                                        end)
+          wrap_iterator(iterator)
         elsif @stream.respond_to?(:each)
           wrap_each
         else
@@ -41,28 +36,26 @@ module LlmCostTracker
 
       private
 
+      def wrap_iterator(iterator)
+        relayed = Enumerator.new { |yielder| relay(iterator.method(:each)) { |event| yielder << event } }
+        @stream.instance_variable_set(:@iterator, relayed)
+      end
+
       def wrap_each
-        tracker = self
         original_each = @stream.method(:each)
+        relayed_each = ->(&block) { relay(original_each, &block) }
         @stream.define_singleton_method(:each) do |&block|
           next enum_for(:each) unless block
 
-          tracker.__send__(:each_from, original_each, &block)
+          relayed_each.call(&block)
         end
       end
 
-      def each_from(iterable)
+      def relay(source)
         errored = false
-        if iterable.respond_to?(:each)
-          iterable.each do |event|
-            capture(event)
-            yield event
-          end
-        else
-          iterable.call do |event|
-            capture(event)
-            yield event
-          end
+        source.call do |event|
+          capture(event)
+          yield event
         end
       rescue Exception # rubocop:disable Lint/RescueException
         errored = true
@@ -72,31 +65,21 @@ module LlmCostTracker
       end
 
       def capture(event)
-        @collector.event(event.try(:to_h) || {}, type: event.try(:type)&.to_s)
+        data = event.to_h if event.respond_to?(:to_h)
+        type = event.type if event.respond_to?(:type)
+        @collector.event(data || {}, type: type&.to_s)
       rescue StandardError => e
         warn_capture_failure(e)
       end
 
       def warn_capture_failure(error)
-        should_warn = @mutex.synchronize do
-          next false if @capture_failed
-
-          @capture_failed = true
-          true
-        end
-        return unless should_warn
-
-        Logging.warn("stream integration failed to capture event: #{error.class}: #{error.message}")
+        first_failure = @mutex.synchronize { !@capture_failed && (@capture_failed = true) }
+        Logging.warn("stream integration failed to capture event: #{error.class}: #{error.message}") if first_failure
       end
 
       def finish!(errored:)
-        should_finish = @mutex.synchronize do
-          next false if @finished
-
-          @finished = true
-          true
-        end
-        return unless should_finish && @active.call
+        claimed = @mutex.synchronize { !@finished && (@finished = true) }
+        return unless claimed && @active.call
 
         begin
           @finish.call(errored)
