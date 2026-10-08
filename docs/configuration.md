@@ -28,7 +28,7 @@ Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `p
 | --- | --- | --- |
 | `tags.default` | `{}` | Hash or callable merged into every event |
 | `tags.max_count` | `50` | Maximum number of stored tags after sanitization |
-| `tags.max_value_bytesize` | `1024` | Maximum byte size for one stored tag value |
+| `tags.max_value_bytesize` | `1024` | Maximum byte size for one stored tag value, capped at 2,048 |
 | `tags.redacted_keys` | common secret-like keys | Tag keys whose values are replaced before storage; provider keys, tokens, and URL or `Authorization` credentials inside any value are replaced too |
 | `tags.report_breakdown_keys` | `[]` | Extra tag keys rendered by `llm_cost_tracker:report` |
 
@@ -84,7 +84,7 @@ Register custom gateway hosts when they speak OpenAI-compatible request and resp
 config.capture.openai_compatible_providers["llm.internal.example"] = "internal_gateway"
 ```
 
-This turns on Faraday capture for the host and sets its provider name, nothing else. With `config.instrument :openai`, an `OpenAI::Client` whose `base_url` is on a listed host records its calls under the same provider name; other non-Azure hosts record as `openai`. Gateway-specific prices belong in `pricing.file` or `pricing.overrides`.
+This turns on Faraday capture for the host and sets its provider name, nothing else. With `config.instrument :openai`, an `OpenAI::Client` whose `base_url` is on a listed host records its calls under the same provider name; Azure hosts record as `azure_openai`, Amazon Bedrock hosts as `bedrock`, and other hosts as `openai`. Gateway-specific prices belong in `pricing.file` or `pricing.overrides`.
 
 ## Azure OpenAI Service
 

@@ -91,7 +91,7 @@ One row per priced component on a call. Tokens and tool charges live here in the
 | `currency` | string, default `USD` | Currency for `cost` |
 | `cost_status` | string, default `unknown` | `complete`, `free`, `unknown` |
 | `pricing_basis` | string | `provider_usage` when the provider reported the quantity itself. Where the *rate* came from is `price_source`, not this column |
-| `price_key` | string | The registry key whose value was applied, mode prefix included (`batch_input`, `off_peak_input`, `above_context_cache_read_input`). Null when the rate was derived from another key's ratio |
+| `price_key` | string | The registry key whose value was applied, mode prefix included (`batch_input`, `off_peak_input`, `above_context_cache_read_input`). A rate derived from another key's ratio stores the key it stands in for, such as `batch_cache_read_input` |
 | `price_source` / `price_source_version` | string | Where the rate came from |
 | `provider_field` | string | Path in the provider response (audit) |
 | `provider_item_id` | string | Provider item id (audit) |

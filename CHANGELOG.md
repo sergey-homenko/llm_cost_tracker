@@ -64,7 +64,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - An empty, `0` or non-numeric `BATCH_SIZE` stops `backfill_unknown_pricing`, `reprice`, `prune` and `backfill_tag_costs` with an error.
 - JSON price files keep floats in their shortest form on json 2.11 and later (`0.951432`, not `0.9514320000000001`).
 - The Calls CSV export sorts the matching calls once instead of re-querying each 500-row batch with `OFFSET`, which was slow on large ledgers.
-- Gemini calls on a Vertex AI regional or multi-region endpoint through RubyLLM are priced at the non-global rates Google's Vertex AI pricing page lists from July 1, 2026, instead of its global rates.
+- Gemini calls on a Vertex AI regional or multi-region endpoint through RubyLLM, or through the official openai gem on its OpenAI-compatible API, are priced at the non-global rates Google's Vertex AI pricing page lists from July 1, 2026, instead of its global rates.
 - Claude 4.5 and later calls on a Vertex AI regional or multi-region endpoint through RubyLLM 2.x or the Anthropic SDK's Vertex client are priced at their `data_residency` rates, Anthropic's 10% premium, instead of their global rates.
 - Claude Opus 4.1, Opus 4, Sonnet 4 and Haiku 3.5, retired on Anthropic's API but still served on Bedrock or Google Cloud, are priced at Anthropic's list prices instead of being recorded with unknown cost; Haiku 3.5 is priced under its API id `claude-3-5-haiku`.
 - RubyLLM 2.x Vertex AI batch results from a regional or multi-region job are priced at their non-global batch rates instead of their global ones.
