@@ -115,13 +115,13 @@ module LlmCostTracker
           heading = doc.css("h2, h3").find { |node| Table.text(node.text) == "Supported Models" }
           raise Error, "Groq prompt caching supported models section not found" unless heading
 
-          models = section(heading).css("code").map { |code| code.text.strip }.select { |id| model_id?(id) }
+          models = section_after(heading).css("code").map { |code| code.text.strip }.select { |id| model_id?(id) }
           raise Error, "expected at least 2 prompt caching models, parsed #{models.size}" if models.size < 2
 
           models
         end
 
-        def section(heading)
+        def section_after(heading)
           html = []
           node = heading
           html << node.to_html while (node = node.next_element) && !node.name.match?(/\Ah[23]\z/)

@@ -20,11 +20,8 @@ module LlmCostTracker
           \A\|\s(?<model>[a-z0-9][a-z0-9.-]*)(?:\s\((?<bound><|≥)\s(?<thousands>\d+)k\sprompt\stokens\))?\s\|[^|]+\|
           \s\$(?<input>\d+(?:\.\d+)?)\s\|\s\$(?<cached>\d+(?:\.\d+)?)\s\|\s\$(?<output>\d+(?:\.\d+)?)\s\|\z
         /x
-        PRIORITY_PREMIUM = /billed at a \*\*([\d.]+)x\*\* premium/
         BATCH_DISCOUNT = /\*\*(\d+(?:\.\d+)?)% off standard rates\*\*\s+((?:- \S+\s+)+)/
         REGIONAL_SECTION = /^## US Regional Endpoint Pricing$(.+?)(?=^## |\z)/m
-        REGIONAL_UPLIFT = /billed at \*\*([\d.]+)x\*\*/
-        REGIONAL_MODELS = /^\| Models \|.*\|(.*)\|$/
         ALIASES = /^- \*\*Aliases:\*\*(.*)$/
 
         def self.followup_urls(pages)
@@ -71,7 +68,7 @@ module LlmCostTracker
         end
 
         def with_tiers(models, pricing)
-          priority = documented_factor(pricing, PRIORITY_PREMIUM, "priority")
+          priority = documented_factor(pricing, /billed at a \*\*([\d.]+)x\*\* premium/, "priority")
           regional, uplift = regional_endpoint(pricing, models)
           batch = batch_factors(pricing, models)
           models.to_h do |id, fields|
@@ -90,8 +87,8 @@ module LlmCostTracker
 
         def regional_endpoint(pricing, models)
           regional = pricing[REGIONAL_SECTION, 1]
-          uplift = documented_factor(regional, REGIONAL_UPLIFT, "US regional")
-          listed = regional[REGIONAL_MODELS, 1].to_s.scan(/`([^`]+)`/).flatten
+          uplift = documented_factor(regional, /billed at \*\*([\d.]+)x\*\*/, "US regional")
+          listed = regional[/^\| Models \|.*\|(.*)\|$/, 1].to_s.scan(/`([^`]+)`/).flatten
           raise Error, "xai US regional models not found in its docs" if listed.empty?
 
           unpriced = listed - models.keys
