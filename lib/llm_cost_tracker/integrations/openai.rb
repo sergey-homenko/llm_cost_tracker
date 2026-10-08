@@ -112,7 +112,7 @@ module LlmCostTracker
         end
 
         def record_image(response, request:, latency_ms:, host: nil)
-          usage = image_usage(response)
+          usage = usage_hash_from(response) || {}
           extractor = Providers::Openai::UsageExtractor
           record_passthrough(
             model: request[:model],
@@ -177,6 +177,10 @@ module LlmCostTracker
           )
         end
 
+        def usage_hash_from(response)
+          response.try(:usage)&.deep_to_h
+        end
+
         def tokens_reported?(body)
           usage = body["usage"] || {}
           input_tokens = usage["input_tokens"] || usage["prompt_tokens"]
@@ -186,11 +190,6 @@ module LlmCostTracker
 
         def warn_missing_usage(body)
           Logging.warn("OpenAI response #{body['id']} has no usage; not recorded") unless body["background"]
-        end
-
-        def image_usage(response)
-          usage = response.usage if response.respond_to?(:usage)
-          usage&.deep_to_h || {}
         end
 
         def transcription_usage(response)

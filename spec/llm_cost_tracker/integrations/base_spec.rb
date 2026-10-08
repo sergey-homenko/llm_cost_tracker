@@ -76,6 +76,21 @@ RSpec.describe LlmCostTracker::Integrations::Base do
       params = integration.request_params([Object.new], { temperature: 0.2 })
       expect(params["temperature"]).to eq(0.2)
     end
+
+    it "reads the SDK client's host, or none without a client or from an unparsable base_url" do
+      client = Struct.new(:base_url)
+
+      expect(integration.client_host(client.new("https://api.example.com/v1"))).to eq("api.example.com")
+      expect(integration.client_host(client.new("https://exa mple.com"))).to be_nil
+      expect(integration.client_host(nil)).to be_nil
+    end
+
+    it "hands back the SDK stream untouched while the integration is not instrumented" do
+      stream = Object.new
+
+      expect(integration.wrap_stream([{ model: "gpt-4o" }], {}, collector: ->(request) { request }) { stream })
+        .to be(stream)
+    end
   end
 
   describe "patch targets" do
@@ -116,6 +131,7 @@ RSpec.describe LlmCostTracker::Integrations::Base do
 
       expect(integration.status).to have_attributes(status: :warn, message: message)
       expect { integration.install }.to raise_error(LlmCostTracker::Error, message)
+      expect(integration.patch_target("LlmCostTrackerSpecMissing", with: patch)).not_to be_installed
     end
   end
 end
