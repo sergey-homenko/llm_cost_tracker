@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.15.0] - 2026-10-09
 
 ### Added
 
@@ -48,6 +48,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Vertex AI calls through RubyLLM are priced at the tier their `usageMetadata.trafficType` reports, and Bedrock Converse calls at their `serviceTier`, instead of at standard rates; Provisioned Throughput, Bedrock `reserved` and tiers no bundled price lists become `unknown`, so they no longer count toward money budgets but still count toward `calls` limits, and `provisioned_throughput_*` or `reserved_*` rates in `pricing.overrides` price them.
 - Calls through the official OpenAI SDK's Bedrock provider (`OpenAI::Providers.bedrock`) are recorded as `bedrock` instead of `openai`.
 - `with_tags` tags reach fibers started inside its block, and on RubyLLM 2.1 the tool threads RubyLLM starts, until the block ends; an `ActionController::Live` action's thread keeps them for the whole action, and other threads, such as a thread pool's, get none.
+- The maintained price snapshot requires 0.15.0, so `prices:refresh` and `prices:check` on 0.14.x stop with "remote pricing snapshot requires llm_cost_tracker >= 0.15.0".
 
 ### Fixed
 
