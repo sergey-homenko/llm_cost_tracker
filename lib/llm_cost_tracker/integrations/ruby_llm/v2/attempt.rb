@@ -25,7 +25,10 @@ module LlmCostTracker
                 normalized_event(usage, payload, (result if final), raw, request, response_id(own, events))
             end
 
-            def stream_window = Capture::EventWindow.new(notable: method(:notable_event?))
+            def stream_window
+              Capture::EventWindow.new(notable: method(:notable_event?),
+                                       trim: stream_parsers.last.method(:trim_stream_event))
+            end
 
             def batch_event(usage, result, base)
               base = nil unless URI(base.to_s).host.to_s.match?(/\A(?:us|eu)\.|aiplatform\./i)

@@ -56,7 +56,7 @@ Captured SDK helpers:
 
 | Provider | Helpers |
 | --- | --- |
-| OpenAI | `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, their `beta.responses` counterparts, `responses.connect` (WebSocket mode, `OpenAI::Responses::Session` included), `chat.completions.stream`, `chat.completions.stream_raw`, `images.generate_stream_raw`, `images.edit_stream_raw`, `audio.transcriptions.create_streaming` |
+| OpenAI | `responses.stream`, `responses.stream_raw`, `responses.retrieve_streaming`, `beta.responses.stream_raw` and `beta.responses.retrieve_streaming`, `responses.connect` (WebSocket mode, `OpenAI::Responses::Session` included), `chat.completions.stream`, `chat.completions.stream_raw`, `images.generate_stream_raw`, `images.edit_stream_raw`, `audio.transcriptions.create_streaming` |
 | Anthropic | `messages.stream`, `messages.stream_raw`, beta Messages stream helpers |
 | RubyLLM | On 1.x, `RubyLLM::Provider#complete` (captured for both blocking and streaming calls; `Chat#ask` reaches this transitively). On 2.x, each streamed attempt's `usage.ruby_llm` event, with the stream events RubyLLM passes to `build_chunk` or, for a transcription, yields from `stream_transcription` |
 

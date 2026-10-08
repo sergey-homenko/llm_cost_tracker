@@ -165,7 +165,9 @@ module LlmCostTracker
             table.css("tr").each do |row|
               link = row.at_css("a[href^='/models/']") or next
               prices = fields.zip(row.css("td")).filter_map { |field, cell| listed_price(field, cell) }.to_h
-              raise Error, "Mistral pricing row for #{link['href']} has no price the scraper reads" if prices.empty?
+              if prices.empty? && row.text.include?("$")
+                raise Error, "Mistral pricing row for #{link['href']} has no price the scraper reads"
+              end
 
               listed[link["href"].delete_prefix("/models/")] = prices
             end

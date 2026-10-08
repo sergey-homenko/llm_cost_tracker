@@ -159,6 +159,11 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
       typo = vertex_html.sub(%r{1h (Cache Write</p></td><td><p>\$6\.00</p></td><td><p>\$12)}, '1hr \1')
       expect { scrape(vertex: typo) }
         .to raise_error(described_class::Error, /long-context prices for Claude Sonnet 4.5 do not extend/)
+      renamed = vertex_html.gsub("=&lt; 200K", "&lt;= 200K").gsub(">Claude Sonnet 4.5<", ">Sonnet 4.5<")
+      expect(scrape(vertex: renamed).models.fetch("claude-sonnet-4-5")).to include("above_context_input" => 6.0)
+      moved = vertex_html.sub(%r{(Haiku 5\.5</p></td><td><p>Input</p></td>)<td></td><td></td>(<td><p>\$0\.10</p></td><td><p>\$0\.50</p></td>)},
+                              '\1\2<td></td><td></td>')
+      expect(scrape(vertex: moved).models.fetch("claude-haiku-5-5")).to include("_context_price_threshold_tokens" => 100_000)
     end
 
     it "keeps retired models Anthropic still serves on Bedrock or Google Cloud, Claude 3 ones under their API id" do

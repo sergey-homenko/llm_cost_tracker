@@ -342,6 +342,26 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
   end
 
   describe "streams priced from their events" do
+    it "keeps a streamed Responses call's usage, tier and id when its file search results outgrow the capture limit" do
+      results = Array.new(50) { |rank| { file_id: "file_#{rank}", score: 0.5, text: "lorem ipsum " * 300 } }
+      searches = Array.new(4) { |index| { type: "file_search_call", id: "fs_#{index}", status: "completed", results: } }
+      message = { type: "message", id: "msg_1", role: "assistant", content: [{ type: "output_text", text: "hi" }] }
+      response = { id: "resp_fs", object: "response", status: "completed", model: "gpt-5.4", service_tier: "priority",
+                   usage: { input_tokens: 60_000, output_tokens: 1_200, total_tokens: 61_200 },
+                   output: searches + [message] }
+      WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(sse(
+        { type: "response.created", response: response.merge(status: "in_progress", usage: nil, output: []) },
+        *(searches + [message]).map { |item| { type: "response.output_item.done", item: item } },
+        { type: "response.completed", response: response }
+      ))
+
+      capture_sdk_events do |events|
+        chat("gpt-5.4", :openai).ask("refunds?") { |_chunk| }
+        expect(events.sole).to include(input_tokens: 60_000, pricing_mode: "priority", provider_response_id: "resp_fs")
+        expect(fees(events.sole)).to eq(%w[file_search_call] * 4)
+      end
+    end
+
     it "reads a streamed Anthropic chat's cumulative input, 1-hour cache writes, request inference geo and id" do
       WebMock.stub_request(:post, messages_url).to_return(anthropic_stream(
         usage: { input_tokens: 50, cache_creation_input_tokens: 2000, output_tokens: 1,

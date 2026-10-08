@@ -151,8 +151,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
 
     expect(scrape.call(sale).fetch("mistral-large-latest"))
       .to include("input" => 0.68, "cache_read_input" => 0.07, "output" => 2.09)
-    expect { scrape.call("<td>TBD</td>" * 3) }
+    expect { scrape.call("<td>$TBD</td>" * 3) }
       .to raise_error(described_class::Error, %r{row for /models/mistral-large-3-25-12 has no price})
+    expect { scrape.call("<td>Contact sales</td>" * 3) }.not_to raise_error
   end
 
   it "writes no LiteLLM-only row, and notes it, when models.dev is unreachable or invalid" do

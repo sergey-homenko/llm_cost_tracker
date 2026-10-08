@@ -133,8 +133,8 @@ module LlmCostTracker
           vertex_long_context_rows(vertex).each_with_object(models.dup) do |(name, rows), priced|
             next if rows.none? { |_field, (base, long)| long && long != base }
 
-            model_id = normalize_model_id(name)
-            next unless models.key?(model_id)
+            model_id = normalize_model_id(name.sub(/\A(?!Claude )/, "Claude "))
+            next unless models.key?(model_id) && !models[model_id].key?(Pricing::Registry::CONTEXT_THRESHOLD_KEY)
             unless rows.size == VERTEX_LONG_CONTEXT_ROWS.size &&
                    rows.all? { |field, (base, long)| long && base == models[model_id][field] }
               raise Error, "Vertex AI long-context prices for #{name} do not extend Anthropic's: #{rows}"
@@ -149,8 +149,7 @@ module LlmCostTracker
 
         def vertex_long_context_rows(vertex)
           table = vertex_global_claude_table(vertex)
-          headers = table.at_css("tr").css("th").map { |th| th.text.strip }
-          columns = ["=< 200K input tokens", "> 200K input tokens"].map { |label| column_index(headers, label) }
+          columns = vertex_long_context_columns(table.at_css("tr").css("th").map { |th| th.text.strip })
           model = nil
           table.css("tr").each_with_object({}) do |tr, rows|
             cells = tr.css("td").map { |td| td.text.gsub(/\s+/, " ").strip }
@@ -159,6 +158,13 @@ module LlmCostTracker
             model = cells[0] unless cells[0].empty?
             field = VERTEX_LONG_CONTEXT_ROWS[cells[1]]
             (rows[model] ||= {})[field] = cells.values_at(*columns).map { |cell| cell[/\$([\d.]+)/, 1]&.to_f } if field
+          end
+        end
+
+        def vertex_long_context_columns(headers)
+          [/(?:=<|<=|≤)\s*200K input tokens/, />\s*200K input tokens/].map do |label|
+            headers.find_index { |header| header.match?(label) } or
+              raise Error, "Vertex AI Claude long-context columns not found in #{headers.inspect}"
           end
         end
 
