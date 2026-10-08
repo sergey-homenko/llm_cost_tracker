@@ -199,7 +199,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
     end
 
     it "records each succeeded batch result as a ledger event with batch pricing_mode and skips errored ones" do
-      WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_xyz/results}).to_return(
+      WebMock.stub_request(:get, %r{https://api\.anthropic\.com/v1/messages/batches/batch_xyz/results}).to_return(
         status: 200,
         body: jsonl_body,
         headers: { "Content-Type" => "application/x-jsonl" }
@@ -261,7 +261,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
     end
 
     it "keeps the SDK stream's own methods on the results it wraps" do
-      WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_xyz/results}).to_return(
+      WebMock.stub_request(:get, %r{https://api\.anthropic\.com/v1/messages/batches/batch_xyz/results}).to_return(
         status: 200,
         body: jsonl_body,
         headers: { "Content-Type" => "application/x-jsonl", "request-id" => "req_results" }
@@ -281,7 +281,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
         config.enabled = false
         config.instrument(:anthropic)
       end
-      WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_xyz/results}).to_return(
+      WebMock.stub_request(:get, %r{https://api\.anthropic\.com/v1/messages/batches/batch_xyz/results}).to_return(
         status: 200,
         body: jsonl_body,
         headers: { "Content-Type" => "application/x-jsonl" }
@@ -291,7 +291,7 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
     end
 
     it "skips a batch result whose provider_response_id already lives in the ledger so a second iteration is a no-op" do
-      WebMock.stub_request(:get, %r{https://api.anthropic.com/v1/messages/batches/batch_xyz/results}).to_return(
+      WebMock.stub_request(:get, %r{https://api\.anthropic\.com/v1/messages/batches/batch_xyz/results}).to_return(
         status: 200,
         body: jsonl_body,
         headers: { "Content-Type" => "application/x-jsonl" }
