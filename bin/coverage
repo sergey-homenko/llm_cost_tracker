@@ -11,20 +11,22 @@ class CoverageGate
 
   def call
     report = LcovReport.new(lcov_path)
-    base = coverage_base
-    patch = PatchCoverage.new(report, base, PATHS)
+    patch = PatchCoverage.new(report, coverage_base, PATHS)
     project_percent = report.percent_for(PATHS)
-    failures = []
-
-    failures << project_failure(project_percent) if project_percent < project_minimum
-    failures << patch_failure(patch) if patch.total.positive? && patch.percent < patch_minimum
-    failures.concat(missing_report_failures(patch))
+    failures = gate_failures(project_percent, patch)
 
     print_summary(report, project_percent, patch, failures)
     exit(failures.empty? ? 0 : 1)
   end
 
   private
+
+  def gate_failures(project_percent, patch)
+    failures = []
+    failures << project_failure(project_percent) if project_percent < project_minimum
+    failures << patch_failure(patch) if patch.total.positive? && patch.percent < patch_minimum
+    failures.concat(missing_report_failures(patch))
+  end
 
   def lcov_path
     ENV.fetch("LCOV_PATH", "coverage/lcov.info")
