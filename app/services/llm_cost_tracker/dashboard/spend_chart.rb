@@ -20,7 +20,7 @@ module LlmCostTracker
       end
 
       def peak_index
-        @peak_index ||= points.each_with_index.max_by { |point, _| point[:cost].to_f }&.last
+        @peak_index ||= points.each_with_index.max_by { |point, _| point[:cost].to_f }.last
       end
 
       def left = PADDING[:left]
