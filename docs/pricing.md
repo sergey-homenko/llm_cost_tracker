@@ -27,6 +27,8 @@ The refresh task reads the maintained LLM Cost Tracker snapshot and writes to `E
 
 Refresh refuses a snapshot that zeroes an existing price or charges for a free one, removes a model's `input` or `output` rate, moves a price 100-fold or more either way, or switches currency, and leaves the local file as it was. `prices:check` lists those changes; once confirmed, re-run refresh with `FORCE=1` or pass `force: true` to `LlmCostTracker::Pricing::Sync.refresh`. New models, models the snapshot drops entirely, removed rates other than `input` and `output`, and smaller moves are not checked, so keep reviewing the refreshed file.
 
+Refresh and `prices:check` stop with "remote pricing snapshot requires llm_cost_tracker >= X" when the snapshot needs a newer gem; upgrade the gem to keep refreshing.
+
 For production containers, refresh the file at build time, ship it with the release, and run `bin/rails llm_cost_tracker:backfill_unknown_pricing` as a release-phase task of that deploy, since the previous release keeps recording calls at the old prices until then. Do not rely on a price refresh that mutates one running container.
 
 ## Price Fields

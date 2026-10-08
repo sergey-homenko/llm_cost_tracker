@@ -2,6 +2,10 @@
 
 ## v0.14.2 → v0.15.0
 
+There are no migrations. Check these after upgrading:
+
+- **Refresh prices.** A local `config.pricing.file` overrides the bundled entry of every model it lists, so this release's price changes to those models, such as Claude Sonnet 4.5 above 200K tokens, apply only after `bin/rails llm_cost_tracker:prices:refresh`.
+- **RubyLLM 2.x is captured through `ActiveSupport::Notifications`.** With `RubyLLM.config.instrumenter`, or a `RubyLLM.context` instrumenter, set to anything else, its calls are not recorded; `llm_cost_tracker:doctor` warns about the global one.
 - **Cohere chats recorded before 0.15.0** through RubyLLM 2.x count Cohere's unbilled preamble as input, so `backfill_unknown_pricing` and `reprice` overstate their cost.
 - **Unpriced tiers through RubyLLM.** Vertex AI Provisioned Throughput, Bedrock `reserved`, and tiers no bundled price lists are recorded `unknown`, so they no longer count toward money budgets, only toward `calls` limits; `provisioned_throughput_*` or `reserved_*` rates in `pricing.overrides` price them.
 - **xAI, Mistral and Perplexity are captured without registration.** Faraday now records their calls and adds `stream_options.include_usage` to xAI and Mistral streaming chat completions (`capture.request_stream_usage = false` leaves request bodies untouched), and the official openai gem records them as `xai`, `mistral` and `perplexity` instead of `openai`.

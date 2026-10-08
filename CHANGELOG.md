@@ -88,6 +88,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A budget pushed over its limit by `backfill_unknown_pricing` or `reprice`, the backfill after `prices:refresh` included, fires `on_exceeded` once.
 - A host app whose inflections define an `LLM` acronym boots and serves the dashboard instead of failing to load the engine.
 - A tag value page for a whitespace-only value, linked from the tag breakdown, renders instead of returning a 500.
+- RubyLLM 2.x Cohere embeddings record the response id, as chats do.
+- Claude calls on Vertex AI under a versioned model id, such as `claude-sonnet-4-5@20250929`, are priced instead of recorded with unknown cost.
 
 ## [0.14.2] - 2026-09-28
 

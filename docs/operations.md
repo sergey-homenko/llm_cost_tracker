@@ -23,7 +23,7 @@ Before building or releasing production images:
 - Treat price files as immutable release config; refresh before image build or through an automation that opens a PR.
 - Run `llm_cost_tracker:backfill_unknown_pricing` in a release job of every deploy that ships a new price file.
 
-When `ingestion = :async` is on, a single app process can need more than its request/job connection: the local ingestor thread checks out one of its own, and every inbox write borrows from the gem's own pool (`config.ingestion.pool_size`, default 2) so staged entries survive caller rollbacks. Size the app pool for your concurrency plus the ingestor thread, and `ingestion.pool_size` for concurrent captures.
+When `ingestion.mode = :async` is on, a single app process can need more than its request/job connection: the local ingestor thread checks out one of its own, and every inbox write borrows from the gem's own pool (`config.ingestion.pool_size`, default 2) so staged entries survive caller rollbacks. Size the app pool for your concurrency plus the ingestor thread, and `ingestion.pool_size` for concurrent captures.
 
 ## Ingestion Path
 
@@ -61,7 +61,7 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion = :inline`) surface as `:warn`. Runtime data conditions (quarantined inbox rows) log to `Rails.logger` from the ingestion worker at the moment they occur — nothing runs `doctor` while the app serves traffic, so those signals must reach the host's own logger.
+`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion.mode = :inline`) surface as `:warn`. Runtime data conditions (quarantined inbox rows) log to `Rails.logger` from the ingestion worker at the moment they occur — nothing runs `doctor` while the app serves traffic, so those signals must reach the host's own logger.
 
 `verify_capture` records a synthetic event and verifies both notifications and ActiveRecord persistence.
 
