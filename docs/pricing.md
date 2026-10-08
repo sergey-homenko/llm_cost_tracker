@@ -57,7 +57,7 @@ A bundled or `pricing.file` OpenAI entry with no `cache_read_input` or `cache_wr
 
 OpenAI Realtime cached audio and image tokens (`input_token_details.cached_tokens_details`) and Gemini cached audio tokens (`cacheTokensDetails`) are priced at `audio_cache_read_input` / `image_cache_read_input`, or at `cache_read_input` when the model has no such rate, and stored as `audio_token` / `image_token` line items with `cache_state` `read`.
 
-Creating an explicit Gemini context cache (`POST /v1beta/cachedContents` through Faraday, or `RubyLLM.cache` on RubyLLM 2.x) records a `cache_storage_token_hour` line item for the cached tokens from `createTime` to `expireTime`, at the model's storage rate. It is an estimate: a cache deleted early is still counted to its expiry, and a TTL changed later is not captured.
+Creating an explicit Gemini context cache (`POST /v1beta/cachedContents` through Faraday, or `RubyLLM.cache` on RubyLLM 2.x, Vertex AI included) records a `cache_storage_token_hour` line item for the cached tokens from `createTime` to `expireTime`, at the model's storage rate. It is an estimate: a cache deleted early is still counted to its expiry, and a TTL changed later is not captured.
 
 Mode-prefixed fields use the same base terms:
 

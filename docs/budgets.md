@@ -32,7 +32,7 @@ Under concurrency, multiple workers can clear preflight before each other's spen
 
 If the budget read fails (database unavailable, statement timeout), `:block_requests` raises that error to your code and the request is not sent.
 
-Through RubyLLM 2.x the pre-send check runs when the call's RubyLLM event starts (`chat.ruby_llm` for each chat generation, `embedding.ruby_llm`, and so on) and raises from that start, so other subscribers to the event see its start but no finish. Operations added in later RubyLLM releases are not checked before they are sent.
+Through RubyLLM 2.x the pre-send check runs when the call's RubyLLM event starts (`chat.ruby_llm` for each chat generation, `embedding.ruby_llm`, `batch.ruby_llm` for a batch submission, `video_job.ruby_llm` and `research_job.ruby_llm` for a video or research job, and so on) and raises from that start, so other subscribers to the event see its start but no finish. `RubyLLM.cache` is checked when its `request.ruby_llm` event starts; recording its storage row never raises a budget error, so the app always gets the cache it paid for. Operations added in later RubyLLM releases are not checked before they are sent.
 
 ## Per-Tag Budgets
 
@@ -123,7 +123,7 @@ On RubyLLM 2.x, RubyLLM calls inside `RubyLLM.workflow` are tagged `run_id` with
 RubyLLM.workflow("Research", id: "research-#{run.id}") { chat.ask(question) }
 ```
 
-Without `id:`, RubyLLM generates one per workflow. A non-blank `run_id` from `with_tags` or `tags.default` wins over the workflow's id; since `with_tags` does not reach RubyLLM's tool threads, prefer passing the id to the workflow. A nested workflow has its own id, so it is a run of its own. Only RubyLLM's own calls get the id: calls in the block through the openai or anthropic SDKs, Faraday or `LlmCostTracker.track`, and the storage row of a Gemini cache created with `RubyLLM.cache`, are not tagged; wrap them in `with_tags(run_id:)` with the same id.
+Without `id:`, RubyLLM generates one per workflow. A non-blank `run_id` from `with_tags` or `tags.default` wins over the workflow's id. A nested workflow has its own id, so it is a run of its own. Only RubyLLM's own calls get the id: calls in the block through the openai or anthropic SDKs, Faraday or `LlmCostTracker.track`, and the storage row of a cache created with `RubyLLM.cache`, are not tagged; wrap them in `with_tags(run_id:)` with the same id.
 
 Bounds:
 
@@ -131,7 +131,7 @@ Bounds:
 - A running stream is not cut; the next call is blocked.
 - Under `ingestion.mode = :async`, a run counts only the calls the worker has drained.
 - An unpriced call adds nothing to `total` until it is priced; `calls` counts it.
-- `with_tags` does not cross threads: code that makes a run's calls in its own threads must set `run_id` there.
+- `with_tags` reaches threads and fibers started inside its block, until the block ends, but not threads that already exist, such as a thread pool's; code that makes a run's calls on those must set `run_id` itself.
 - `total` and `calls` have no window, so a reused run id keeps counting its earlier calls until `llm_cost_tracker:prune` deletes them.
 - A check reads every call the run has recorded, so it slows as the run grows: measured on 3M tag rows, a 5,000-call run reads in about 1–15 ms on PostgreSQL and 5–140 ms on MySQL, warm to cold cache. With both limits, a `:block_requests` rule makes up to four reads per call: two before it is sent and two after it is recorded.
 

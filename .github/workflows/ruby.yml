@@ -38,6 +38,8 @@ jobs:
           - ruby-version: '3.4'
             gemfile: gemfiles/ruby_llm_1.gemfile
           - ruby-version: '3.4'
+            gemfile: gemfiles/ruby_llm_2_0.gemfile
+          - ruby-version: '3.4'
             gemfile: gemfiles/json_3.gemfile
     env:
       BUNDLE_GEMFILE: ${{ github.workspace }}/${{ matrix.gemfile }}

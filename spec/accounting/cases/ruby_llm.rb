@@ -622,6 +622,9 @@ module AccountingCases
     cost = { input_tokens_cost: 0.002, output_tokens_cost: 0.001, request_cost: 0.005, total_cost: 0.008 }
     stub_json(:post, "#{PERPLEXITY_API}/chat/completions",
               chat_completion(id: "pplx_b3", model: "sonar", usage: perplexity_usage(2000, 1000, cost)))
+    agent_usage = perplexity_agent_usage(2000, 1000, input_cost: 0.002, output_cost: 0.001, tool_calls_cost: 0.005,
+                                                     total_cost: 0.008)
+    stub_json(:post, "#{PERPLEXITY_API}/v1/agent", responses_object(id: "pplx_b3", model: "sonar", usage: agent_usage))
     context = RubyLLM.context { |config| config.perplexity_api_key = "test-perplexity" }
     ruby_llm_chat("sonar", :perplexity, context: context).ask("hi")
   end
@@ -636,6 +639,10 @@ module AccountingCases
                  choices: [{ index: 0, delta: { content: "ok" }, finish_reason: finish }])
     end
     stub_sse(:post, "#{PERPLEXITY_API}/chat/completions", sse(*items))
+    agent_usage = perplexity_agent_usage(2000, 1000, input_cost: 0.002, output_cost: 0.001, tool_calls_cost: 0.005,
+                                                     total_cost: 0.008)
+    stub_sse(:post, "#{PERPLEXITY_API}/v1/agent",
+             responses_stream_body(id: "pplx_b5", model: "sonar", usage: agent_usage))
     context = RubyLLM.context { |config| config.perplexity_api_key = "test-perplexity" }
     ruby_llm_chat("sonar", :perplexity, context: context).ask("hi") { nil }
   end
@@ -1099,6 +1106,22 @@ module AccountingCases
       config.vertexai_location = "europe-west4"
     end
     RubyLLM::Batch.find(job, provider: :vertexai, context: context).messages
+  end
+
+  define_case "ruby_llm vertex cache: gemini-2.5-flash storage on a regional endpoint until it expires",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: "RubyLLM 1.x has no context caches" do
+    allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:headers).and_return({})
+    location = "projects/proj/locations/us-central1"
+    stub_json(:post, "https://us-central1-aiplatform.googleapis.com/v1beta1/#{location}/cachedContents",
+              { name: "#{location}/cachedContents/rl_vtx",
+                model: "#{location}/publishers/google/models/gemini-2.5-flash",
+                createTime: "2026-09-28T12:00:00Z", expireTime: "2026-09-28T13:30:00Z",
+                usageMetadata: { totalTokenCount: 200_000 } })
+    context = RubyLLM.context do |config|
+      config.vertexai_project_id = "proj"
+      config.vertexai_location = "us-central1"
+    end
+    RubyLLM.cache("document", model: "gemini-2.5-flash", provider: :vertexai, ttl: 5400, context: context)
   end
 
   define_case "ruby_llm vertex chat: mistral-medium-latest on a regional endpoint at its Mistral rate",

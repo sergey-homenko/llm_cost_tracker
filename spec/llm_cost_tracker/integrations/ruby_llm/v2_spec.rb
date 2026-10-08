@@ -187,7 +187,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "records xAI's billed ticks once and exactly, not from RubyLLM's float, and Perplexity's total_cost" do
+    it "records xAI's billed ticks once and exactly, not from RubyLLM's float, and Perplexity's total_cost, " \
+       "from Sonar or, on RubyLLM 2.1, the Agent API" do
       WebMock.stub_request(:post, "https://api.x.ai/v1/responses").to_return(reply(response_object(
         id: "resp_x", model: "grok-4.3",
         usage: { input_tokens: 204, input_tokens_details: { cached_tokens: 192 }, output_tokens: 122,
@@ -200,6 +201,11 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
                        cost: { input_tokens_cost: 0.00001, output_tokens_cost: 0.00001, request_cost: 0.005,
                                total_cost: 0.00502 } })
       )
+      WebMock.stub_request(:post, "https://api.perplexity.ai/v1/agent").to_return(reply(response_object(
+        id: "pplx-1", model: "sonar",
+        usage: { input_tokens: 12, output_tokens: 7, total_tokens: 19,
+                 cost: { input_cost: 0.00001, output_cost: 0.00001, tool_calls_cost: 0.005, total_cost: 0.00502 } }
+      )))
       keys = RubyLLM.context do |config|
         config.xai_api_key = "test-xai"
         config.perplexity_api_key = "test-perplexity"
@@ -268,6 +274,26 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
           .to eq([[20, 8000], [30, 1500]])
         expect(events.map { |event| event[:provider_response_id] }).to eq(%w[msg_p1 msg_p2])
         expect(costs(events).sum { |total| BigDecimal(total) }).to eq(BigDecimal("0.06855"))
+      end
+    end
+
+    it "prices a chat at the tier its provider options set, and its manual compaction, which does not send them, " \
+       "at standard rates" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(reply(response_object(
+        id: "resp_c1", model: "gpt-5.4", usage: { input_tokens: 1000, output_tokens: 100, total_tokens: 1100 }
+      )))
+      WebMock.stub_request(:post, "https://api.openai.com/v1/responses/compact").to_return(reply(
+        id: "cmp_1", object: "response.compaction", created_at: 1,
+        output: [{ type: "compaction", id: "cmp_item1", encrypted_content: "gAAAA" }],
+        usage: { input_tokens: 5000, output_tokens: 300, total_tokens: 5300 }
+      ))
+
+      capture_sdk_events do |events|
+        flex = chat("gpt-5.4", :openai).with_provider_options(service_tier: "flex")
+        flex.ask("hi")
+        flex.compact
+        expect(events.map { |event| event.values_at(:provider_response_id, :pricing_mode) })
+          .to eq([%w[resp_c1 flex], ["cmp_1", nil]])
       end
     end
   end
@@ -642,10 +668,11 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "records an operation it has no event for at once, skips chat usage outside a chat, and flushes a leaked one" do
+    it "records an operation it has no event for at once, but not a video or research job, skips chat usage " \
+       "outside a chat, and flushes a leaked one" do
       tokens = RubyLLM::Tokens.new(input: 10, output: 5, reported_cost: 0.0042)
       usage = { operation: :chat, provider: "anthropic", model: "claude-sonnet-4-6", status: :succeeded, tokens: tokens }
-      judgment = usage.merge(operation: :judgment, tokens: RubyLLM::Tokens.new(input: 30, output: 2))
+      later = usage.merge(operation: :translation, tokens: RubyLLM::Tokens.new(input: 30, output: 2))
       outer = { provider: "anthropic", model: "claude-sonnet-4-6" }
       leaked = outer.dup
 
@@ -654,7 +681,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         described_class.start("chat.ruby_llm", "2", outer)
         described_class.start("chat.ruby_llm", "3", leaked)
         described_class.finish("usage.ruby_llm", "4", usage)
-        described_class.finish("usage.ruby_llm", "5", judgment)
+        described_class.finish("usage.ruby_llm", "5", later)
+        %i[video research].each { |operation| described_class.finish("usage.ruby_llm", "6", later.merge(operation:)) }
         expect(events.map { |event| event.values_at(:input_tokens, :usage_source) }).to eq([[30, "sdk_response"]])
 
         described_class.finish("chat.ruby_llm", "2", outer)
@@ -775,7 +803,7 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
-    it "tags the calls RubyLLM makes in parallel tool threads with the run_id, which with_tags does not reach" do
+    it "tags the calls RubyLLM makes in parallel tool threads with the run_id and the app's with_tags" do
       stub_const("LookupTool", Class.new(RubyLLM::Tool) do
         description "Looks a query up"
         def execute(query:) = RubyLLM.embed(query, model: "text-embedding-3-small").model
@@ -800,25 +828,36 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
                                                  .ask("hi")
           end
         end
-        expect(events.map { |event| event[:tags].values_at(:run_id, :feature) })
-          .to contain_exactly(%w[run-42 research], %w[run-42 research], ["run-42", nil], ["run-42", nil])
+        expect(events.map { |event| event[:tags].values_at(:run_id, :feature) }).to all(eq(%w[run-42 research]))
+        expect(events.size).to eq(4)
       end
     end
 
-    it "tags a batch result collected inside a workflow with its run_id" do
-      staged = chat("claude-sonnet-4-5", :anthropic).ask_later("hi")
-      body = anthropic_message(id: "msg_wb", model: "claude-sonnet-4-5", usage: { input_tokens: 10, output_tokens: 5 })
-      message = RubyLLM::Message.new(role: :assistant, content: "hi", raw: body.deep_stringify_keys, input_tokens: 10,
-                                     output_tokens: 5)
-      allow(staged.provider).to receive(:batch_results) do
-        RubyLLM.instrument("request.ruby_llm", { provider: "anthropic", method: :get }) { [[0, message]] }
+    it "tags batch results collected inside a workflow with its run_id, also when no RubyLLM request event fetches " \
+       "them, and leaves them untagged when RubyLLM no longer exposes its current workflow" do
+      batch = lambda do |id, instrumented: false|
+        staged = chat("claude-sonnet-4-5", :anthropic).ask_later("hi")
+        body = anthropic_message(id: "msg_#{id}", model: "claude-sonnet-4-5",
+                                 usage: { input_tokens: 10, output_tokens: 5 })
+        message = RubyLLM::Message.new(role: :assistant, content: "hi", raw: body.deep_stringify_keys, input_tokens: 10,
+                                       output_tokens: 5)
+        allow(staged.provider).to receive(:batch_results) do
+          next [[0, message]] unless instrumented
+
+          RubyLLM.instrument("request.ruby_llm", { provider: "anthropic", method: :get }) { [[0, message]] }
+        end
+        RubyLLM::Batch.new(provider: staged.provider, chats: [staged], id: id, raw_status: "ended", completed: true)
       end
-      batch = RubyLLM::Batch.new(provider: staged.provider, chats: [staged], id: "msgbatch_wf", raw_status: "ended",
-                                 completed: true)
 
       capture_sdk_events do |events|
-        RubyLLM.workflow("Nightly", id: "run-42") { batch.messages }
-        expect(events.sole[:tags]).to include(run_id: "run-42", workflow_name: "Nightly")
+        RubyLLM.workflow("Nightly", id: "run-42") do
+          [batch.call("wb1", instrumented: true), batch.call("wb2")].each(&:messages)
+        end
+        allow(RubyLLM::Support::Instrumentation).to receive(:respond_to?).and_call_original
+        allow(RubyLLM::Support::Instrumentation).to receive(:respond_to?).with(:current_workflow).and_return(false)
+        RubyLLM.workflow("Nightly", id: "run-43") { batch.call("wb3").messages }
+        expect(events.map { |event| event[:tags].slice(:run_id, :workflow_name) })
+          .to eq([{ run_id: "run-42", workflow_name: "Nightly" }] * 2 + [{}])
       end
     end
 
@@ -908,6 +947,29 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       expect(WebMock).not_to have_requested(:post, /api\.openai\.com/)
     ensure
       image&.close!
+    end
+
+    it "blocks a batch submission, a context cache, a judgment, and video and research jobs before sending them" do
+      allow(LlmCostTracker.configuration.budgets).to receive(:monthly).and_return(100.0)
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: BigDecimal("150"))
+      keys = RubyLLM.context do |config|
+        config.xai_api_key = "test-xai"
+        config.vertexai_project_id = "proj"
+        config.vertexai_location = "global"
+      end
+      staged = chat("claude-sonnet-4-6", :anthropic).ask_later("hi")
+      video = { model: "grok-imagine-video", provider: :xai, assume_model_exists: true, context: keys }
+
+      [-> { RubyLLM.batch([staged]) },
+       -> { RubyLLM.cache("document", model: "gemini-2.5-flash", provider: :gemini) },
+       -> { described_class.start("judgment.ruby_llm", "1", { provider: "openai", model: "gpt-5" }) },
+       -> { RubyLLM.animate_later("a boat", **video) },
+       -> { RubyLLM.research_later("hi", provider: :vertexai, agent: "deep-research", context: keys) }].each do |call|
+        expect { call.call }.to raise_error(
+          an_instance_of(LlmCostTracker::BudgetExceededError).and(having_attributes(stage: :pre_send))
+        )
+      end
+      expect(WebMock).not_to have_requested(:any, /.*/)
     end
   end
 
@@ -1201,6 +1263,30 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         RubyLLM::CachedContent.find(created.name, provider: :gemini).renew(ttl: 3600)
         RubyLLM.cache("document", model: "gemini-2.5-flash", provider: :gemini, ttl: 3600)
         expect(events.sole).to include(model: "gemini-2.5-flash", provider_response_id: "cachedContents/abc123")
+        expect(events.sole.dig(:cost, :total)).to eq("0.25")
+      end
+    end
+
+    it "records a Vertex AI context cache's storage under its model id, and returns a cache whose storage crosses " \
+       "a budget" do
+      allow(LlmCostTracker.configuration.budgets).to receive_messages(exceeded_behavior: :raise, per_call: 0.000001)
+      allow_any_instance_of(RubyLLM::Providers::VertexAI).to receive(:headers).and_return({})
+      vertex = RubyLLM.context do |config|
+        config.vertexai_project_id = "proj"
+        config.vertexai_location = "us-central1"
+      end
+      location = "projects/proj/locations/us-central1"
+      WebMock.stub_request(:post, "https://us-central1-aiplatform.googleapis.com/v1beta1/#{location}/cachedContents")
+             .to_return(reply(name: "#{location}/cachedContents/vtx1",
+                              model: "#{location}/publishers/google/models/gemini-2.5-flash",
+                              createTime: "2026-09-27T10:00:00Z", expireTime: "2026-09-27T11:00:00Z",
+                              usageMetadata: { totalTokenCount: 250_000 }))
+
+      capture_sdk_events do |events|
+        cache = RubyLLM.cache("document", model: "gemini-2.5-flash", provider: :vertexai, ttl: 3600, context: vertex)
+        expect(cache.name).to eq("#{location}/cachedContents/vtx1")
+        expect(events.sole).to include(provider: "vertexai", model: "gemini-2.5-flash",
+                                       provider_response_id: cache.name)
         expect(events.sole.dig(:cost, :total)).to eq("0.25")
       end
     end

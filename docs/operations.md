@@ -50,7 +50,7 @@ The default process `at_exit` hook stops the local ingestor without forcing ever
 
 ## Ruby Concurrency
 
-Threaded Rails servers and fiber schedulers are supported. Scoped tags use `ActiveSupport::IsolatedExecutionState`, so isolation follows the host Rails isolation mode. Stream collectors snapshot tag context at creation time, which keeps tags stable when a stream finishes in another thread or fiber.
+Threaded Rails servers and fiber schedulers are supported. Scoped tags live in fiber storage: each thread and fiber has its own, and one started inside `with_tags` sees its tags until the block ends. Stream collectors snapshot tag context at creation time, which keeps tags stable when a stream finishes in another thread or fiber.
 
 Ractors are not a supported runtime boundary for this gem. Rails, ActiveRecord connections, Faraday middleware registration, configuration objects, Mutex-backed caches, and the local ingestor thread all assume normal process/thread Rails execution. If an application uses Ractors for CPU-bound work, keep provider calls and tracking in the main Rails execution context, or send plain usage data back and call `LlmCostTracker.track` there.
 

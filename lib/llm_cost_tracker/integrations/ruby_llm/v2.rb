@@ -13,8 +13,9 @@ module LlmCostTracker
         minimum_version "2.0.0"
         maximum_version "3.0.0"
 
-        OPERATIONS = %i[chat embedding image transcription moderation speech ocr rerank].freeze
-        EVENTS = [*OPERATIONS, :compaction, :request, :usage].map { |name| "#{name}.ruby_llm" }.freeze
+        OPERATIONS = %i[chat embedding image transcription moderation speech ocr rerank judgment].freeze
+        JOBS = %w[batch.ruby_llm video_job.ruby_llm research_job.ruby_llm].freeze
+        EVENTS = [*OPERATIONS, :compaction, :request, :usage].map { |name| "#{name}.ruby_llm" }.concat(JOBS).freeze
         FRAMES = :llm_cost_tracker_ruby_llm_frames
         CACHE_CREATED = :llm_cost_tracker_ruby_llm_cache_created
         SEAMS = {
@@ -33,7 +34,8 @@ module LlmCostTracker
           parse_image_responses: %w[Protocols::ChatCompletions Protocols::Gemini Providers::XAI::Images],
           parse_cache_response: %w[Protocols::Gemini],
           messages: %w[Batch],
-          results: %w[Batch]
+          results: %w[Batch],
+          current_workflow: %w[Support::Instrumentation]
         }.freeze
         StreamTranscriptionBridge = Module.new do
           def stream_transcription(*, **, &block)
@@ -52,7 +54,7 @@ module LlmCostTracker
         BatchBridge = Module.new do
           %i[messages results].each { |name| define_method(name) { V2.collect(self) { super() } } }
         end
-        BRIDGES = SEAMS.except(:stream_transcription, :transcribe, :messages, :results).keys.to_h do |seam|
+        BRIDGES = (SEAMS.keys - %i[stream_transcription transcribe messages results current_workflow]).to_h do |seam|
           bridge = Module.new do
             define_method(seam) do |value, *args, **options, &block|
               V2.observe(seam, options.fetch(:raw, value), self)
@@ -67,7 +69,8 @@ module LlmCostTracker
           results: BatchBridge
         ).freeze
         RECORDED = ObjectSpace::WeakKeyMap.new
-        Frame = Struct.new(*%i[payload attempts request_started_at latency_ms window response raw provider workflow])
+        Frame = Struct.new(*%i[payload attempts compaction request_started_at latency_ms window response raw provider
+                               workflow])
 
         class << self
           def integration_name = :ruby_llm
@@ -77,9 +80,9 @@ module LlmCostTracker
             Logging.warn(untested_version_message) if untested_version?
             @subscriptions ||= EVENTS.map { |name| ActiveSupport::Notifications.subscribe(name, self) }
             RubyLLM.config.instrumenter ||= ActiveSupport::Notifications
-            SEAMS.each do |seam, targets|
-              targets.filter_map { |target| seam_owner(target, seam) }.each do |owner|
-                owner.prepend(BRIDGES[seam]) unless owner == BRIDGES[seam]
+            BRIDGES.each do |seam, bridge|
+              SEAMS[seam].filter_map { |target| seam_owner(target, seam) }.each do |owner|
+                owner.prepend(bridge) unless owner == bridge
               end
             end
           end
@@ -102,22 +105,22 @@ module LlmCostTracker
             missing = missing_seams
             return Check.new(:ok, name, "#{name} integration installed") if missing.empty?
 
-            message = "#{name} integration installed, but these RubyLLM methods are missing, so the provider usage " \
-                      "they carry is not read: #{missing.join(', ')}"
+            message = "#{name} integration installed, but these RubyLLM methods are missing, so what they carry " \
+                      "is not read: #{missing.join(', ')}"
             Check.new(:warn, name, message)
           end
 
           def start(name, _id, payload)
             case name
             when "usage.ruby_llm" then nil
-            when "request.ruby_llm" then start_request
-            else start_operation(payload)
+            when "request.ruby_llm" then start_request(payload)
+            else start_operation(name, payload)
             end
           end
 
           def finish(name, _id, payload)
             case name
-            when "usage.ruby_llm" then add_attempt(payload)
+            when "usage.ruby_llm" then add_attempt(payload) unless %i[video research].include?(payload[:operation])
             when "request.ruby_llm" then finish_request(payload)
             else finish_operation(payload)
             end
@@ -140,7 +143,11 @@ module LlmCostTracker
           end
 
           def collect(batch)
-            frame = Frame.new(batch, [])
+            frame = Frame.new(
+              payload: batch,
+              attempts: [],
+              workflow: "RubyLLM::Support::Instrumentation".safe_constantize.try(:current_workflow)
+            )
             frames << frame
             results = yield
             record_batch(batch, results, frame) if active?
@@ -167,7 +174,7 @@ module LlmCostTracker
 
           def frames = Thread.current[FRAMES] ||= []
 
-          def start_operation(payload)
+          def start_operation(name, payload)
             return unless active?
 
             enforce_budget!(
@@ -175,7 +182,7 @@ module LlmCostTracker
               provider: payload[:provider].to_s,
               tags: (LlmCostTracker::Tracker.build_tags(**tags_for(payload)) if payload[:workflow_id])
             )
-            frames << Frame.new(payload, [])
+            frames << Frame.new(payload, [], name.start_with?("compaction")) if JOBS.exclude?(name)
           end
 
           def finish_operation(payload)
@@ -186,15 +193,16 @@ module LlmCostTracker
             raise errors.first if errors.any? && !payload[:exception]
           end
 
-          def start_request
+          def start_request(payload)
+            cache = payload[:method] == :post && payload[:url].to_s.end_with?("cachedContents")
+            Thread.current[CACHE_CREATED] = (payload[:provider].to_s if cache)
+            enforce_budget!(request: {}, provider: payload[:provider].to_s) if cache
             frame = frames.last
             frame&.request_started_at = Timing.now_monotonic
             frame&.latency_ms = nil
           end
 
           def finish_request(payload)
-            Thread.current[CACHE_CREATED] = payload[:provider].to_s == "gemini" && payload[:method] == :post &&
-                                            payload[:url].to_s.end_with?("cachedContents")
             frame = frames.last
             return unless frame
 
@@ -203,10 +211,10 @@ module LlmCostTracker
           end
 
           def record_cache_storage(data)
-            return unless Thread.current[CACHE_CREATED] && active?
-
-            event = Providers::Gemini::Parser.new.cache_storage_event(data)
-            LlmCostTracker::Tracker.record(event: event) if event
+            event = Providers::Gemini::Parser.new.cache_storage_event(data) if Thread.current[CACHE_CREATED] && active?
+            LlmCostTracker::Tracker.record(event: event.with(provider: Thread.current[CACHE_CREATED])) if event
+          rescue LlmCostTracker::BudgetExceededError
+            nil
           end
 
           def add_attempt(usage)
@@ -224,10 +232,11 @@ module LlmCostTracker
           def flush(frame)
             final = frame.attempts.rindex { |usage, *| usage[:status] == :succeeded }
             final ||= frame.attempts.size - 1 if frame.response
+            payload = frame.compaction ? frame.payload.except(:provider_options) : frame.payload
             frame.attempts.each_with_index.filter_map do |(usage, latency_ms, events, raw), index|
               attempt = { final: index == final, events: events, response: frame.response, raw: raw,
                           provider: frame.provider }
-              record_safely { record_attempt(usage, frame.payload, latency_ms, **attempt) }
+              record_safely { record_attempt(usage, payload, latency_ms, **attempt) }
               nil
             rescue *CALLER_ERRORS => e
               e
@@ -276,13 +285,8 @@ module LlmCostTracker
           end
 
           def budget_request(payload)
-            messages = payload[:input_messages]
-            input = if messages
-                      messages.map { |message| message.try(:content).then { |content| content.try(:text) || content } }
-                    else
-                      payload.values_at(:input, :prompt, :query)
-                    end
-            { model: payload[:model], input: input }
+            input = payload[:input_messages]&.map { |message| message.try(:content).then { |c| c.try(:text) || c } }
+            { model: payload[:model], input: input || payload.values_at(:input, :prompt, :query) }
           end
         end
       end

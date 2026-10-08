@@ -8,8 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - `budgets.per_tag` `total` window: a lifetime limit per tag value, such as one agent run's `run_id`.
 - `budgets.per_tag` `calls` limit: the number of recorded calls per tag value, unpriced calls included.
-- RubyLLM calls inside `RubyLLM.workflow` are tagged `run_id` with the workflow's id, also from tools RubyLLM runs concurrently, unless the app sets `run_id`.
-- RubyLLM 2.x speech, OCR, rerank and operations added in later RubyLLM releases are recorded, with unknown cost where no rate applies.
+- RubyLLM calls inside `RubyLLM.workflow` are tagged `run_id` with the workflow's id, also from tools RubyLLM runs concurrently and batch results collected inside it, unless the app sets `run_id`.
+- RubyLLM 2.x speech, OCR, rerank, judgments and operations added in later RubyLLM releases are recorded, with unknown cost where no rate applies; video generation and research jobs are not.
 - RubyLLM 2.x `RubyLLM.batch` results are recorded once each at batch rates when `Batch#messages` or `#results` returns them.
 - `RubyLLM.workflow` names and steps become `workflow_name` and `workflow_step_name` tags.
 - Perplexity, xAI and Mistral hosts, regional ones included, are built into `capture.openai_compatible_providers`, so Faraday, the official openai gem and `track_stream` capture them without registration.
@@ -47,6 +47,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Bundled prices drop the models Mistral lists as retired, with their aliases such as `magistral-medium-latest`, and any model its provider has stopped listing for 90 days.
 - Vertex AI calls through RubyLLM are priced at the tier their `usageMetadata.trafficType` reports, and Bedrock Converse calls at their `serviceTier`, instead of at standard rates; Provisioned Throughput, Bedrock `reserved` and tiers no bundled price lists become `unknown`, so they no longer count toward money budgets but still count toward `calls` limits, and `provisioned_throughput_*` or `reserved_*` rates in `pricing.overrides` price them.
 - Calls through the official OpenAI SDK's Bedrock provider (`OpenAI::Providers.bedrock`) are recorded as `bedrock` instead of `openai`.
+- `with_tags` tags reach threads and fibers started inside its block, RubyLLM's tool threads included, until the block ends.
 
 ### Fixed
 
@@ -77,6 +78,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The official openai gem's `client.beta.responses` and legacy `client.completions.create` calls are recorded.
 - Azure OpenAI calls on a `*.cognitiveservices.azure.com` host are recorded as `azure_openai` instead of missed by Faraday and recorded as `openai` by the official openai gem.
 - An image edit with cached input through the official openai gem counts the cached tokens once, as Faraday does, instead of billing them again as image input.
+- RubyLLM 2.1 calls are priced at the `service_tier`, `speed` and `inference_geo` set with `with_provider_options`, which RubyLLM 2.1 no longer keeps on its raw responses.
+- `:block_requests` stops RubyLLM 2.x batch submissions, video and research jobs, RubyLLM 2.1 judgments and `RubyLLM.cache` before they are sent, and recording a cache's storage no longer raises a budget error after the cache is created.
+- `RubyLLM.cache` on Vertex AI records the cache's storage, as on the Gemini API.
+- `with_tags` in fibers sharing a thread, such as RubyLLM tools under `concurrency: :fibers`, no longer tags other fibers' calls or leaves its tags on the thread.
 
 ## [0.14.2] - 2026-09-28
 

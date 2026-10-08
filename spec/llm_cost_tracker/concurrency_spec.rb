@@ -231,45 +231,37 @@ RSpec.describe "concurrency", :aggregate_failures do
       expect(values.sort).to eq(Array.new(8) { |i| "req_#{i}" })
     end
 
-    it "keeps scoped tags isolated across fibers when Rails uses fiber isolation" do
-      original_level = ActiveSupport::IsolatedExecutionState.isolation_level
-      ActiveSupport::IsolatedExecutionState.isolation_level = :fiber
+    it "keeps scoped tags isolated across fibers on one thread, leaves none behind, and lends them to threads " \
+       "started inside the block while it runs" do
       recorded = []
-
-      fiber_a = Fiber.new do
-        LlmCostTracker.with_tags(request_id: "fiber_a") do
-          Fiber.yield
-          event = LlmCostTracker::Tracker.record(
-            event: LlmCostTracker::Event.build(
-              provider: "openai",
-              model: "gpt-4o",
-              token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+      fibers = %w[fiber_a fiber_b].map do |request_id|
+        Fiber.new do
+          LlmCostTracker.with_tags(request_id: request_id) do
+            Fiber.yield
+            event = LlmCostTracker::Tracker.record(
+              event: LlmCostTracker::Event.build(
+                provider: "openai",
+                model: "gpt-4o",
+                token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+              )
             )
-          )
-          recorded << event.tags[:request_id]
+            recorded << event.tags[:request_id]
+          end
         end
       end
 
-      fiber_b = Fiber.new do
-        LlmCostTracker.with_tags(request_id: "fiber_b") do
-          event = LlmCostTracker::Tracker.record(
-            event: LlmCostTracker::Event.build(
-              provider: "openai",
-              model: "gpt-4o",
-              token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1, output_tokens: 1)
-            )
-          )
-          recorded << event.tags[:request_id]
-        end
+      2.times { fibers.each(&:resume) }
+
+      expect(recorded).to eq(%w[fiber_a fiber_b])
+      expect(LlmCostTracker::Tags::Context.tags).to eq({})
+
+      queue = Queue.new
+      threads = LlmCostTracker.with_tags(request_id: "parent") do
+        [Thread.new { LlmCostTracker::Tags::Context.tags }.tap(&:join),
+         Thread.new { queue.pop && LlmCostTracker::Tags::Context.tags }]
       end
-
-      fiber_a.resume
-      fiber_b.resume
-      fiber_a.resume
-
-      expect(recorded).to eq(%w[fiber_b fiber_a])
-    ensure
-      ActiveSupport::IsolatedExecutionState.isolation_level = original_level
+      queue << true
+      expect(threads.map(&:value)).to eq([{ request_id: "parent" }, {}])
     end
   end
 
