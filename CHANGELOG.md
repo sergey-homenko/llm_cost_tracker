@@ -67,6 +67,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Claude 4.5 and later calls on a Vertex AI regional or multi-region endpoint through RubyLLM 2.x or the Anthropic SDK's Vertex client are priced at their `data_residency` rates, Anthropic's 10% premium, instead of their global rates.
 - Claude Opus 4.1, Opus 4, Sonnet 4 and Haiku 3.5, retired on Anthropic's API but still served on Bedrock or Google Cloud, are priced at Anthropic's list prices instead of being recorded with unknown cost; Haiku 3.5 is priced under its API id `claude-3-5-haiku`.
 - RubyLLM 2.x Vertex AI batch results from a regional or multi-region job are priced at their non-global batch rates instead of their global ones.
+- Gemini models that only Google's Vertex AI pricing page prices, such as Gemini 3.8 Flash Cyber, are priced from it instead of recorded with unknown cost.
 
 ## [0.14.2] - 2026-09-28
 
