@@ -21,26 +21,12 @@ module LlmCostTracker
         def call(scope: default_scope, batch_size: DEFAULT_BATCH_SIZE, reprice: false)
           examined = 0
           recomputed = 0
-
           scope.includes(:line_items, :tag_records).find_in_batches(batch_size: batch_size) do |batch|
-            rollup_events = []
-            LlmCostTracker::Call.transaction do
-              batch.each do |call|
-                calculation = recompute_for(call, reprice: reprice)
-                next if calculation && changed_since_read?(call)
-
-                examined += 1
-                next unless calculation
-
-                rollup_events << rollup_event_for(call, calculation)
-                persist!(call, calculation)
-                recomputed += 1
-              end
-              Ledger::Rollups.increment!(rollup_events)
-            end
+            batch_examined, rollup_events = recompute_batch(batch, reprice: reprice)
+            examined += batch_examined
+            recomputed += rollup_events.size
             LlmCostTracker::Budget.notify_repriced_safely!(rollup_events)
           end
-
           Result.new(examined: examined, recomputed: recomputed, still_unknown: examined - recomputed)
         end
 
@@ -58,8 +44,32 @@ module LlmCostTracker
           calls.where(usage_source: nil).or(calls.where.not(usage_source: Usage::Source::UNKNOWN))
         end
 
+        def recompute_batch(batch, reprice:)
+          examined = 0
+          rollup_events = []
+          LlmCostTracker::Call.transaction do
+            batch.each do |call|
+              calculation = recompute_for(call, reprice: reprice)
+              next if calculation && changed_since_read?(call)
+
+              examined += 1
+              next unless calculation
+
+              rollup_events << rollup_event_for(call, calculation)
+              persist!(call, calculation)
+            end
+            Ledger::Rollups.increment!(rollup_events)
+          end
+          [examined, rollup_events]
+        end
+
         def recompute_for(call, reprice:)
-          calculation = Pricing::Calculation.for(
+          calculation = calculation_for(call, reprice: reprice)
+          calculation if applicable?(call, calculation, reprice: reprice)
+        end
+
+        def calculation_for(call, reprice:)
+          Pricing::Calculation.for(
             provider: call.provider,
             model: call.model,
             tokens: token_usage_from(call),
@@ -68,13 +78,19 @@ module LlmCostTracker
             usage_source: call.usage_source,
             at: call.tracked_at
           )
-          return unless calculation.token_cost || provider_billed?(calculation)
-          return if [calculation.cost.total, calculation.cost_status] == [call.total_cost, call.cost_status]
-          return calculation if reprice
+        end
 
+        def applicable?(call, calculation, reprice:)
+          return false unless calculation.token_cost || provider_billed?(calculation)
+          return false if [calculation.cost.total, calculation.cost_status] == [call.total_cost, call.cost_status]
+
+          reprice || recorded_rates_current?(call, calculation)
+        end
+
+        def recorded_rates_current?(call, calculation)
           rates = calculation.priced_line_items.to_h { |item| [dimension_key(item), item.rate_amount] }
           recorded = call.line_items.select { |record| record.unit == "token" && record.rate_amount }
-          calculation if recorded.all? { |record| record.rate_amount == rates[dimension_key(record)] }
+          recorded.all? { |record| record.rate_amount == rates[dimension_key(record)] }
         end
 
         def changed_since_read?(call)
@@ -100,11 +116,14 @@ module LlmCostTracker
             pricing_mode: calculation.mode
           )
           resync_tag_costs(call, calculation.cost.total)
-          token_priced = calculation.priced_line_items.select(&:token?).index_by { |item| dimension_key(item) }
-          service_priced = calculation.priced_line_items.reject(&:token?)
-          token_records, service_records = call.line_items.partition { |record| record.unit == "token" }
+          apply_rates(call.line_items, calculation.priced_line_items)
+        end
 
-          token_records.each { |record| apply_rate(record, token_priced[dimension_key(record)]) }
+        def apply_rates(records, priced_items)
+          token_records, service_records = records.partition { |record| record.unit == "token" }
+          token_priced, service_priced = priced_items.partition(&:token?)
+          by_dimension = token_priced.index_by { |item| dimension_key(item) }
+          token_records.each { |record| apply_rate(record, by_dimension[dimension_key(record)]) }
           service_records.sort_by(&:position).zip(service_priced).each { |record, priced| apply_rate(record, priced) }
         end
 

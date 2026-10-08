@@ -130,6 +130,28 @@ RSpec.describe LlmCostTracker::Pricing::Sync::Fetcher do
       }
     end
 
+    it "follows a redirect to its location with the same etag" do
+      moved = Net::HTTPMovedPermanently.new("1.1", "301", "Moved Permanently")
+      allow(moved).to receive(:[]).with("location").and_return("/v2/prices.json")
+      found = Net::HTTPOK.new("1.1", "200", "OK")
+      allow(found).to receive(:read_body).and_yield("{}")
+      allow(found).to receive(:[]).with("etag").and_return(nil)
+      allow(found).to receive(:[]).with("last-modified").and_return(nil)
+      requests = []
+      http = instance_double(Net::HTTP)
+      allow(http).to receive(:request) do |request, &block|
+        requests << request
+        (requests.one? ? moved : found).tap { |response| block.call(response) }
+      end
+      allow(Net::HTTP).to receive(:start).and_yield(http)
+
+      response = described_class.new.get("https://example.com/prices.json", etag: "v1")
+
+      expect(response.body).to eq("{}")
+      expect(requests.map { |request| [request.path, request["If-None-Match"]] })
+        .to eq([["/prices.json", "v1"], ["/v2/prices.json", "v1"]])
+    end
+
     it "raises with a scrubbed url when a redirect is missing its location header" do
       response = Net::HTTPMovedPermanently.new("1.1", "301", "Moved Permanently")
       allow(response).to receive(:[]).with("location").and_return(nil)

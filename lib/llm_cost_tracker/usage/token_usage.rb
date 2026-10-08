@@ -16,10 +16,9 @@ module LlmCostTracker
         priced = Catalog.token_priced.to_h do |dimension|
           [dimension.token_key, non_negative_int(values[dimension.token_key])]
         end
-        subtotal = priced.values.sum
-        declared_total = values[:total_tokens]
-        total = declared_total ? [non_negative_int(declared_total), subtotal].max : subtotal
-        new(**priced, total_tokens: total, hidden_output_tokens: non_negative_int(values[:hidden_output_tokens]))
+        new(**priced,
+            total_tokens: total(values[:total_tokens], priced.values.sum),
+            hidden_output_tokens: non_negative_int(values[:hidden_output_tokens]))
       end
 
       def self.build_from_tokens(tokens)
@@ -40,6 +39,11 @@ module LlmCostTracker
       def self.non_negative_int(value)
         [value.to_i, 0].max
       end
+
+      def self.total(declared, counted)
+        declared ? [non_negative_int(declared), counted].max : counted
+      end
+      private_class_method :total
     end
   end
 end
