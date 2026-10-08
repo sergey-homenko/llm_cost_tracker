@@ -299,6 +299,13 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
   end
 
   describe "request-derived pricing mode on attempts other than the last successful one" do
+    it "reads the provider options when the raw request body is not JSON" do
+      raw = Faraday::Response.new(Faraday::Env.from(request_body: "--multipart-boundary"))
+
+      expect(described_class::Attempt.send(:request_params, raw, { provider_options: { service_tier: "flex" } }))
+        .to eq("service_tier" => "flex")
+    end
+
     it "prices every blocking pause_turn segment of a US-inference chat at data residency" do
       WebMock.stub_request(:post, messages_url).to_return(
         reply(anthropic_message(id: "msg_g1", usage: { input_tokens: 10_000, output_tokens: 1_000 },

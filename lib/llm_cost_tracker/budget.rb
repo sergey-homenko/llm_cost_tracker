@@ -12,7 +12,7 @@ module LlmCostTracker
     BUDGET_TYPE_TO_PERIOD = { monthly: :month, daily: :day }.freeze
 
     class << self
-      def enforce!(provider: nil, model: nil, request: nil, estimate: nil, tags: nil, force: false)
+      def enforce!(provider: nil, model: nil, request: nil, tags: nil, force: false)
         config = LlmCostTracker.configuration
         return unless config.enabled
 
@@ -20,7 +20,7 @@ module LlmCostTracker
         per_tag = force || PerTag.blocking?
         return unless globally || per_tag
 
-        estimates = estimate ? [estimate] : request_estimates(provider: provider, model: model, request: request)
+        estimates = request_estimates(provider: provider, model: model, request: request)
         estimate = estimates.sum(BigDecimal("0"))
         now = Time.now.utc
         enforce_globally(config, estimate: estimate, largest: estimates.max || estimate, time: now) if globally

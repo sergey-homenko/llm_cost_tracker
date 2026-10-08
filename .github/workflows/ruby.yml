@@ -103,6 +103,13 @@ jobs:
         bundler-cache: true
     - name: Run tests on MySQL
       run: bundle exec rspec
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage/lcov.info
+        flags: mysql
+        fail_ci_if_error: false
 
   lint:
     runs-on: ubuntu-26.04

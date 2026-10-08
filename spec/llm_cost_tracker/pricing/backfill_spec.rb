@@ -291,6 +291,16 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
       expect(described_class.call.recomputed).to eq(2)
       expect(notified).to be_empty
     end
+
+    it "logs instead of raising when the budget read after repricing fails" do
+      track("late-model")
+      price("late-model" => 11.0)
+      allow(LlmCostTracker::Budget::PerTag).to receive(:rules_for_events).and_raise(ActiveRecord::StatementInvalid)
+      allow(LlmCostTracker::Logging).to receive(:warn)
+
+      expect(described_class.call.recomputed).to eq(1)
+      expect(LlmCostTracker::Logging).to have_received(:warn).with(/Budget check failed after repricing/)
+    end
   end
 
   describe "off-peak windows" do
