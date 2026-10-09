@@ -44,7 +44,7 @@ The dashboard reads:
 | --- | --- | --- |
 | Overview | `/` | Spend trend, budget status, anomaly banner, provider rollup, top models |
 | Models | `/models` | Spend and usage by provider/model, top 200 |
-| Calls | `/calls` | Filterable ledger, call details, CSV export |
+| Calls | `/calls` | Filterable ledger, call details, CSV export of the first 10,000 matching calls in the page's order |
 | Tags | `/tags` and `/tags/:key` | Tag key explorer and tag value breakdowns |
 | Data Quality | `/data_quality` | Incomplete pricing, partial costs, missing latency, incomplete streams, tool/runtime charge coverage, budgeted tags no call carries |
 | Pricing | `/pricing` | Per-model rates as separate tabs — Overrides, Custom file, Bundled; the active source (first non-empty in priority order) is highlighted, with last-updated date and currency next to the row count. |
