@@ -21,6 +21,12 @@ RSpec.describe LlmCostTracker::Pricing::Sync::ChangePrinter do
       expect(output).not_to include("changed service charges")
     end
 
+    it "prints BigDecimal rates as plain decimals" do
+      described_class.call({ "openai/gpt-4o" => { "input" => { "from" => BigDecimal("3.75"), "to" => nil } } }, output: io)
+
+      expect(io.string).to include("input: 3.75 -> nil")
+    end
+
     it "prints service-charge changes as provider.component lines instead of treating them as model fields" do
       described_class.call(
         {

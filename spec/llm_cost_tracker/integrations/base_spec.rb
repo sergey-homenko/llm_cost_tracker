@@ -118,6 +118,20 @@ RSpec.describe LlmCostTracker::Integrations::Base do
       expect(integration.status).to have_attributes(status: :ok, message: "spec_sdk integration installed")
     end
 
+    it "warns about optional classes the SDK no longer has once the integration is installed" do
+      patch = Module.new { def create = super }
+      integration = integration_patching do
+        [patch_target("LlmCostTrackerSpecResource", with: patch),
+         patch_target("LlmCostTrackerSpecMissing", with: patch, optional: true)]
+      end
+      integration.install
+
+      expect(integration.status).to have_attributes(
+        status: :warn,
+        message: "spec_sdk integration installed without LlmCostTrackerSpecMissing; their calls are not recorded"
+      )
+    end
+
     it "lists missing classes and methods, except optional classes and targets that may lack the methods" do
       patch = Module.new { def stream = super }
       integration = integration_patching do

@@ -34,11 +34,11 @@ module LlmCostTracker
       end
 
       def pending?
-        Ingestion::InboxEntry.pending.exists?
+        Ingestion::InboxEntry.uncached { Ingestion::InboxEntry.pending.exists? }
       end
 
       def claimable?
-        claimable_scope(Time.now.utc - LOCK_TIMEOUT_SECONDS).exists?
+        Ingestion::InboxEntry.uncached { claimable_scope(Time.now.utc - LOCK_TIMEOUT_SECONDS).exists? }
       end
 
       def mark_failed_with_message(rows, message, decrement_attempts: false)

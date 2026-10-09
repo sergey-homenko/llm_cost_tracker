@@ -45,7 +45,11 @@ module LlmCostTracker
         end
 
         def transition(values)
-          "#{values['from'].inspect} -> #{values['to'].inspect}"
+          "#{shown(values['from'])} -> #{shown(values['to'])}"
+        end
+
+        def shown(value)
+          value.is_a?(BigDecimal) ? value.to_s("F") : value.inspect
         end
       end
     end

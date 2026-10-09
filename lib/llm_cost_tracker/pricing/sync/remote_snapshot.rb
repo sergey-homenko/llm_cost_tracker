@@ -4,6 +4,8 @@ require "active_support/core_ext/object/blank"
 require "json"
 require "rubygems"
 
+require_relative "fetcher"
+
 module LlmCostTracker
   module Pricing
     module Sync
@@ -24,7 +26,7 @@ module LlmCostTracker
             "metadata" => @metadata.merge(
               "schema_version" => schema_version,
               "updated_at" => @metadata["updated_at"] || today.iso8601,
-              "source_url" => Redaction.text(url),
+              "source_url" => Fetcher.scrub_url(url),
               "source_version" => source_version
             ),
             "models" => models,

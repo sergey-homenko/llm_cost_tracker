@@ -1367,6 +1367,17 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       expect(described_class.status).to have_attributes(status: :ok, message: "ruby_llm integration installed")
     end
 
+    it "installs without replacing an instrumenter the host app already set" do
+      custom = Object.new
+      RubyLLM.config.instrumenter = custom
+
+      described_class.install
+
+      expect(RubyLLM.config.instrumenter).to equal(custom)
+    ensure
+      RubyLLM.config.instrumenter = ActiveSupport::Notifications
+    end
+
     it "warns that the integration is not installed before it subscribes" do
       subscriptions = described_class.instance_variable_get(:@subscriptions)
       described_class.instance_variable_set(:@subscriptions, nil)

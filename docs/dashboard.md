@@ -44,14 +44,14 @@ The dashboard reads:
 | --- | --- | --- |
 | Overview | `/` | Spend trend, budget status, anomaly banner, provider rollup, top models |
 | Models | `/models` | Spend and usage by provider/model, top 200 |
-| Calls | `/calls` | Filterable ledger, call details, CSV export |
+| Calls | `/calls` | Filterable ledger, call details, CSV export of the first 10,000 matching calls in the page's order |
 | Tags | `/tags` and `/tags/:key` | Tag key explorer and tag value breakdowns |
 | Data Quality | `/data_quality` | Incomplete pricing, partial costs, missing latency, incomplete streams, tool/runtime charge coverage, budgeted tags no call carries |
 | Pricing | `/pricing` | Per-model rates as separate tabs — Overrides, Custom file, Bundled; the active source (first non-empty in priority order) is highlighted, with last-updated date and currency next to the row count. |
 
 ## Filters
 
-Dashboard pages share date/provider/model/tag filtering when the page supports those dimensions. Dates and daily charts follow the app's `Time.zone`; daily charts need the database to know the zone name (PostgreSQL through its tzdata, MySQL through the server's time zone tables loaded with `mysql_tzinfo_to_sql`) and otherwise stay on UTC days. The overview's monthly budget card uses the UTC month, like the budgets themselves. Tag filters use the same sanitized tag keys accepted by `LlmCostTracker.with_tags` and `track(tags:)`. A tag with a `nil` or empty value counts as untagged on every page, in `cost_by_tag`, and for `budgets.per_tag`.
+Dashboard pages share date/provider/model/tag filtering when the page supports those dimensions. Dates and daily charts follow the app's `Time.zone`; daily charts need the database to know the zone name (PostgreSQL through its tzdata, MySQL through the server's time zone tables loaded with `mysql_tzinfo_to_sql`) and otherwise stay on UTC days. The overview's monthly budget card uses the UTC month, like the budgets themselves. Tag filters use the same sanitized tag keys accepted by `LlmCostTracker.with_tags` and `track(tags:)`. A tag with a `nil` or empty value counts as untagged on every page, in `cost_by_tag`, and for `budgets.per_tag`. On MySQL, tag filters and breakdowns follow the tag column's collation, so values that differ only in case, accents or trailing spaces show together, while `budgets.per_tag` compares exact values.
 
 A page accepts at most 10 tag filters, counting a tag value page's own value, and each filter takes a single value, not a list. Invalid filters, including on the CSV export, render a bad-request page instead of raising through your app.
 

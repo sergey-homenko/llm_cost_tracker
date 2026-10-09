@@ -35,7 +35,10 @@ RSpec.describe LlmCostTracker::Pricing::OffPeak do
       [{ "weekdays" => [0], "hours_utc" => ["00:00-01:00"] }], [{ "weekdays" => ["1"], "hours_utc" => ["00:00-01:00"] }],
       [{ "weekdays" => [1], "hours_utc" => "00:00-01:00" }], [{ "weekdays" => [1], "hours_utc" => ["10:00-00:00"] }],
       [{ "weekdays" => [1], "hours_utc" => ["01:00-01:00"] }], [{ "weekdays" => [1], "hours_utc" => ["24:00-24:00"] }],
-      [{ "weekdays" => [1], "hours_utc" => ["1:00-2:00"] }]
+      [{ "weekdays" => [1], "hours_utc" => ["1:00-2:00"] }],
+      [{ "weekdays" => [1], "hours_utc" => ["00:00-01:00"] }, { "weekdays" => [8], "hours_utc" => ["00:00-01:00"] }],
+      [{ "weekdays" => [1, 9], "hours_utc" => ["00:00-01:00"] }],
+      [{ "weekdays" => [1], "hours_utc" => ["00:00-01:00", "10:00-00:00"] }]
     ]
     malformed.each do |value|
       expect { described_class.windows(value, label: "_off_peak_windows") }

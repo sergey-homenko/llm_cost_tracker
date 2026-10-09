@@ -17,9 +17,7 @@ module LlmCostTracker
           @tags = tags
           @url = env.url.to_s
           @parser = Parsers.find_for(@url)
-          @body = Body.read(env.body) || Body.multipart_model_json(env, @parser)
-          @request = @parser&.safe_json_parse(@body)
-          @streaming = @parser&.streaming_request?(@url, @request)
+          read_request if @parser
         end
 
         def call(app)
@@ -33,6 +31,16 @@ module LlmCostTracker
         end
 
         private
+
+        def read_request
+          @body = Body.read(@env.body) || Body.multipart_model_json(@env, @parser)
+          @request = @parser.safe_json_parse(@body)
+          @model = @parser.model_for(@url, @request)
+          @streaming = @parser.streaming_request?(@url, @request)
+        rescue StandardError => e
+          @request = {}
+          Logging.warn("Unable to read the request body: #{e.class}: #{e.message}")
+        end
 
         def prepare_stream
           @body = request_stream_usage || @body
@@ -57,10 +65,14 @@ module LlmCostTracker
         def post? = @env.method == :post
 
         def tag_snapshot
-          [LlmCostTracker::Tags::Context.tags, resolved_tags]
+          [tags_or_empty { LlmCostTracker::Tags::Context.tags }, tags_or_empty { resolved_tags }]
+        end
+
+        def tags_or_empty
+          yield
         rescue StandardError => e
           Logging.warn("Error resolving request tags: #{e.class}: #{e.message}")
-          [{}, {}]
+          {}
         end
 
         def resolved_tags
@@ -72,7 +84,7 @@ module LlmCostTracker
         def enforce_budget
           Budget.enforce!(
             provider: @parser&.provider_for(@url),
-            model: @parser&.model_for(@url, @request),
+            model: @model,
             request: @request,
             tags: Tracker.build_tags(context_tags: @context_tags, metadata: @metadata)
           )
@@ -102,7 +114,8 @@ module LlmCostTracker
         rescue ActiveRecord::RecordNotUnique
           nil
         rescue StandardError => e
-          Logging.warn("Error processing response: #{e.class}: #{e.message}")
+          Logging.warn("Error processing #{@parser.provider_for(@url)} response for model #{@model || 'unknown'}: " \
+                       "#{e.class}: #{e.message} (#{Array(e.backtrace).first})")
         end
 
         def record_interruption(error, latency_ms)

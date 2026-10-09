@@ -20,9 +20,6 @@ module LlmCostTracker
 
       def rows
         scope.klass.find_by_sql(build_sql)
-      rescue ActiveRecord::StatementInvalid => e
-        LlmCostTracker::Logging.warn("Tag key discovery failed (#{connection.adapter_name}): #{e.class}: #{e.message}")
-        []
       end
 
       private

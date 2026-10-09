@@ -45,7 +45,8 @@ module LlmCostTracker
 
       def self.billable_charges(token_usage, token_cost, token_pricing_partial, service_line_items)
         charges = service_line_items.select(&:billable?)
-        return charges unless token_usage.priced_quantities.any? { |_key, quantity| quantity.positive? }
+        return charges unless token_usage.total_tokens.to_i.positive? ||
+                              token_usage.priced_quantities.any? { |_key, quantity| quantity.positive? }
 
         charges + [TokenCharge.new(cost: token_cost, partial: token_pricing_partial)]
       end

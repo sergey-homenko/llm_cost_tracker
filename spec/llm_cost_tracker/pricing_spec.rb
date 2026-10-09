@@ -813,6 +813,34 @@ RSpec.describe LlmCostTracker::Pricing do
       expect(result.total).to eq(0.868)
     end
 
+    it "keeps base rates at exactly the threshold and counts 1-hour cache writes toward it" do
+      LlmCostTracker.configure do |c|
+        c.pricing.overrides = {
+          "tiered-model" => {
+            "input" => 1.0, "cache_write_extended_input" => 2.0, "_context_price_threshold_tokens" => 200_000,
+            "above_context_input" => 3.0, "above_context_cache_write_extended_input" => 4.0
+          }
+        }
+      end
+
+      at_threshold = cost_for(provider: "custom", model: "tiered-model", input_tokens: 200_000)
+      with_cache_writes = cost_for(provider: "custom", model: "tiered-model", input_tokens: 100_000,
+                                   cache_write_extended_input_tokens: 150_000)
+
+      expect(at_threshold.total).to eq(0.2)
+      expect(with_cache_writes.total).to eq(0.9)
+    end
+
+    it "applies the latest scheduled price in effect whatever order its keys are listed in" do
+      LlmCostTracker.configure do |c|
+        c.pricing.overrides = { "sched-model" => { "input" => 1.0, "input_from_2026-08-01" => 3.0, "input_from_2026-07-01" => 2.0 } }
+      end
+
+      match = LlmCostTracker::Pricing::Matcher.lookup(provider: "openai", model: "sched-model", at: Time.utc(2026, 9, 1))
+
+      expect(match.prices["input"]).to eq(3.0)
+    end
+
     it "uses above-context mode rates for batch pricing" do
       LlmCostTracker.configure do |c|
         c.pricing.overrides = {

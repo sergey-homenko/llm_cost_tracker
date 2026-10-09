@@ -19,7 +19,8 @@
   <% end %>
 
   <span class="lct-filter-row-meta"><%= number_with_delimiter(@calls_count) %> call<%= "s" unless @calls_count == 1 %> · <%= money(@calls_total_cost) %></span>
-  <%= link_to "Export CSV", calls_path(current_query(format: :csv)), class: "lct-page-link", title: "Capped at #{number_with_delimiter(LlmCostTracker::CallsController::CSV_EXPORT_LIMIT)} rows per request" %>
+  <% export_limit = LlmCostTracker::CallsController::CSV_EXPORT_LIMIT %>
+  <%= link_to(@calls_count > export_limit ? "Export CSV (first #{number_with_delimiter(export_limit)})" : "Export CSV", calls_path(current_query(format: :csv)), class: "lct-page-link", title: "Capped at #{number_with_delimiter(export_limit)} rows per request") %>
 </div>
 
 <% if @calls_count.zero? %>

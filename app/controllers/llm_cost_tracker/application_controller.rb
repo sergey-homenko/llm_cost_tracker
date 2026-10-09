@@ -20,7 +20,7 @@ module LlmCostTracker
     rescue_from ActiveRecord::ConnectionNotEstablished, with: :render_database_error
     rescue_from ActiveRecord::AdapterNotSpecified, with: :render_database_error
     rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
-    rescue_from ActiveRecord::StatementInvalid, with: :render_database_error
+    rescue_from ActiveRecord::StatementInvalid, with: :render_query_error
     rescue_from LlmCostTracker::InvalidFilterError, with: :render_invalid_filter
 
     private
@@ -50,6 +50,12 @@ module LlmCostTracker
 
     def render_database_error(_error)
       render_error_page("database", :internal_server_error)
+    end
+
+    def render_query_error(error)
+      Logging.warn("Dashboard query failed: #{error.class}: #{error.message}")
+      Rails.error.report(error, handled: true)
+      render_error_page("query", :internal_server_error)
     end
 
     def render_invalid_filter(error)

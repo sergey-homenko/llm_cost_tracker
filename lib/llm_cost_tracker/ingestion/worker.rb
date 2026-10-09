@@ -165,7 +165,8 @@ module LlmCostTracker
         end
 
         def handle_error(error)
-          Logging.warn("ActiveRecord ingestor failed: #{error.class}: #{error.message}")
+          Logging.warn("ActiveRecord ingestor failed: #{error.class}: #{error.message}" \
+                       "#{" (#{error.backtrace.first})" if error.backtrace}")
         end
 
         def release_connection!

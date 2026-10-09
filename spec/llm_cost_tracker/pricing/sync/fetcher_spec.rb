@@ -113,7 +113,7 @@ RSpec.describe LlmCostTracker::Pricing::Sync::Fetcher do
     end
 
     it "returns an invalid url placeholder when scrubbing an unparsable url" do
-      expect(described_class.new.send(:scrub_url, "https://[bad]")).to eq("[invalid url]")
+      expect(described_class.scrub_url("https://[bad]")).to eq("[invalid url]")
     end
 
     it "scrubs the url when raising too-many-redirects" do

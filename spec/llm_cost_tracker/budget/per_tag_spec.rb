@@ -155,6 +155,18 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
     end
   end
 
+  describe "window boundaries" do
+    it "counts a call stamped at the start of the next day in that day's window only" do
+      configure_per_tag
+      spend(1.0, tags: { tenant_id: 42 }, tracked_at: Time.utc(2026, 7, 2))
+
+      today = described_class.spend("tenant_id", "42", :daily, time: Time.utc(2026, 7, 1, 12))
+      tomorrow = described_class.spend("tenant_id", "42", :daily, time: Time.utc(2026, 7, 2, 12))
+
+      expect([today, tomorrow]).to eq([0, 1])
+    end
+  end
+
   describe "per-rule behavior" do
     it "blocks the tag pre-send while the global policy only notifies" do
       configure_per_tag({ monthly: 5 }, behavior: :block_requests)
@@ -274,6 +286,22 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       expect(rows.map(&:tracked_at)).to all(be_within(1).of(event.tracked_at))
     end
 
+    it "pages through the unfilled rows by id instead of rescanning the filled ones" do
+      configure_per_tag
+      3.times { spend(1.0, tags: { tenant_id: 42 }) }
+      LlmCostTracker::CallTag.update_all(total_cost: nil, tracked_at: nil)
+      selects = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        selects << payload[:sql] if payload[:sql].start_with?("SELECT") && payload[:sql].include?("call_tags")
+      end
+
+      expect(described_class.backfill(batch_size: 1)).to eq(3)
+      expect(selects.size).to eq(4)
+      expect(selects).to all(match(/id\W* >= /))
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
     it "leaves already filled rows alone and reports nothing to do" do
       configure_per_tag
       spend(1.0, tags: { tenant_id: 42 })
@@ -323,6 +351,21 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       described_class.active?
 
       expect(LlmCostTracker::Logging).to have_received(:warn).with(/total_cost \/ tracked_at/).once
+    end
+
+    it "lets a call through and records it when a blocking rule cannot be read" do
+      LlmCostTracker.configuration.ingestion.mode = :inline
+      LlmCostTracker.configuration.budgets.exceeded_behavior = :block_requests
+      LlmCostTracker.configuration.budgets.per_tag = { tenant_id: { monthly: 5 } }
+      allow(LlmCostTracker::Logging).to receive(:warn)
+
+      expect do
+        LlmCostTracker.track(provider: "openai", model: "gpt-4o", tokens: { input_tokens: 10, output_tokens: 5 },
+                             tags: { tenant_id: 42 }, enforce_budget: true)
+        LlmCostTracker::Budget.enforce!(provider: "openai", model: "gpt-4o", request: { "input" => "x" },
+                                        tags: { tenant_id: 42 })
+      end.not_to raise_error
+      expect(LlmCostTracker::Call.count).to eq(1)
     end
   end
 

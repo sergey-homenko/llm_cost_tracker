@@ -18,8 +18,7 @@ module LlmCostTracker
 
         def tags
           config = LlmCostTracker.configuration
-          base = config.tags.static_sanitized_default ||
-                 Sanitizer.call(call_default_tags(config.tags.default).to_h)
+          base = config.tags.static_sanitized_default || Sanitizer.call(call_default_tags(config.tags.default))
           base.merge(scoped)
         end
 
@@ -30,7 +29,7 @@ module LlmCostTracker
         end
 
         def call_default_tags(proc_or_lambda)
-          proc_or_lambda.call
+          (proc_or_lambda.call || {}).to_h
         rescue StandardError => e
           Logging.warn("LlmCostTracker tags.default proc raised: #{e.class}: #{e.message}; using empty default tags")
           {}

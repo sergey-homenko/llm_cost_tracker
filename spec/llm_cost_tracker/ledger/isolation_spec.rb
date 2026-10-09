@@ -134,7 +134,8 @@ RSpec.describe LlmCostTracker::Ledger::Isolation do
       expect(host_transaction_usable?).to be(true)
     end
     expect(LlmCostTracker::Call.count).to eq(1)
-    expect(LlmCostTracker::Logging).to have_received(:warn).with(/Error processing response: ActiveRecord::LockWaitTimeout/)
+    expect(LlmCostTracker::Logging).to have_received(:warn)
+      .with(/Error processing openai response for model gpt-4o: ActiveRecord::LockWaitTimeout/)
   end
 
   it "makes a single rollup attempt inside a non-joinable transaction and logs the failure" do

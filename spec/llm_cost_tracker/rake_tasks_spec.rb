@@ -134,6 +134,26 @@ RSpec.describe "llm_cost_tracker rake tasks" do
     expect(LlmCostTracker::Pricing::Backfill).not_to have_received(:call)
   end
 
+  it "refuses a BATCH_SIZE of 0 in every other task that takes one and passes a valid one through" do
+    allow(LlmCostTracker::Pricing::Backfill).to receive(:reprice_scope).and_return(:scope)
+    allow(LlmCostTracker::Pricing::Backfill).to receive(:call)
+      .and_return(LlmCostTracker::Pricing::Backfill::Result.new(examined: 0, recomputed: 0, still_unknown: 0))
+    allow(LlmCostTracker::Retention).to receive_messages(prune: 0, prune_inbox: 0)
+    allow(LlmCostTracker::Budget::PerTag).to receive_messages(columns?: true, backfill: 0)
+    tasks = %w[reprice prune backfill_tag_costs].map { |task| Rake::Task["llm_cost_tracker:#{task}"] }
+
+    stub_const("ENV", ENV.to_h.merge("BATCH_SIZE" => "0", "FROM" => "2026-09-21"))
+    tasks.each do |task|
+      expect { task.execute }.to raise_error(SystemExit).and output(/BATCH_SIZE=0 is not a positive integer/).to_stderr
+    end
+    stub_const("ENV", ENV.to_h.merge("BATCH_SIZE" => "7", "FROM" => "2026-09-21"))
+    tasks.each { |task| expect { task.execute }.to output.to_stdout }
+
+    expect(LlmCostTracker::Pricing::Backfill).to have_received(:call).with(hash_including(batch_size: 7))
+    expect(LlmCostTracker::Retention).to have_received(:prune).with(hash_including(batch_size: 7))
+    expect(LlmCostTracker::Budget::PerTag).to have_received(:backfill).with(batch_size: 7)
+  end
+
   it "reprices calls from FROM up to TO and refuses to run without FROM or with an unreadable TO" do
     backfill = LlmCostTracker::Pricing::Backfill
     allow(backfill).to receive(:reprice_scope).and_return(:scope)

@@ -383,6 +383,15 @@ RSpec.describe "LlmCostTracker::Engine calls" do
     expect(response.body).not_to include("claude-haiku-4-5")
   end
 
+  it "labels the export link with the cap when more calls match than one export holds" do
+    stub_const("LlmCostTracker::CallsController::CSV_EXPORT_LIMIT", 2)
+    2.times { create_call }
+
+    expect(get("/llm-costs/calls").body).to include(">Export CSV</a>")
+    create_call
+    expect(get("/llm-costs/calls").body).to include("Export CSV (first 2)")
+  end
+
   it "exports every sort in the page's order across batch boundaries, up to the export limit" do
     stub_const("LlmCostTracker::CallsController::CSV_EXPORT_BATCH_SIZE", 2)
     stub_const("LlmCostTracker::CallsController::CSV_EXPORT_LIMIT", 7)
@@ -466,7 +475,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
 
     expect(response.status).to eq(500)
     expect(response.headers["Content-Type"]).to include("text/html")
-    expect(response.body).to include("Database unavailable")
+    expect(response.body).to include("Query failed")
   end
 
   it "treats a NUL byte in a tag filter value as matching nothing on PostgreSQL" do

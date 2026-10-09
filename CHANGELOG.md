@@ -104,6 +104,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The Faraday middleware reads a multipart request's model only from a part starting at the request's boundary, so an uploaded file that contains a `model` field can no longer change the recorded model.
 - `prices:refresh` and a re-run of the prices generator keep `pricing.file` entries for models the bundled prices do not list, such as fine-tuned models, instead of deleting them unless marked `"_source": "manual"`, and the refresh change list no longer shows kept entries as removed.
 - `budgets.monthly`, `daily` and `per_call` given as a numeric string, such as an `ENV` value, are used as numbers instead of failing every call or never firing; a non-numeric or negative value, or an `on_exceeded` that cannot be called, raises at `configure`.
+- The Faraday middleware keeps `with_tags` and `tags.default` tags on a call when its own `tags:` proc raises; it dropped them all.
+- A `tags.default` proc that returns `nil` or `false` adds no tags; `false` failed SDK streams before the request and dropped blocking calls.
+- Usage that reports only `total_tokens`, with no input or output split, is recorded as `cost_status: unknown` on a priced model instead of `free` at $0.
+- `prices:check` and `prices:refresh` print changed rates as plain decimals instead of forms like `0.375e1`.
+- `prices:refresh` and `prices:check` write and print the snapshot URL without its credentials, query string or fragment; only known secret parameter names were masked.
+- `Ingestion::Worker.flush!` inside a request, a job or `rails runner` notices inbox rows another process drained, instead of reading a cached answer until it times out.
+- `llm_cost_tracker:backfill_tag_costs` pages through tag rows by id, so a batch no longer rescans the rows already filled.
+- On MySQL, the install and `upgrade_indexes` migrations no longer create `index_llm_cost_tracker_calls_on_unpriced`, which MySQL built as a plain index on `id` that no query uses.
+- The Calls page shows the CSV export's 10,000-call cap on its export link when more calls match; the cut was silent.
+- `doctor` warns when an enabled SDK integration cannot find one of the SDK classes it patches, such as a renamed resource in a newer SDK, instead of reporting it installed while those calls go unrecorded.
+- The Faraday middleware reads a request body only on LLM URLs, so a Hash body that is not valid JSON, such as binary form data, no longer fails requests to other hosts; an LLM request whose body cannot be read is recorded from its response.
+- A dashboard query that fails, such as on a statement timeout, shows a query failure page, logs the error and reports it through `Rails.error`, instead of asking you to run the install generator; the Tags page no longer shows an empty list when its query fails.
+- The warning for a response the Faraday middleware cannot process names the provider, the model and the failing line, and the async ingestor's warning names the failing line.
 
 ## [0.14.2] - 2026-09-28
 

@@ -143,6 +143,8 @@ OpenRouter returns what it charged for each call in `usage.cost`, in the respons
 
 ## Usage and Pricing Coverage
 
+Usage that reports only a total token count, with no input or output split, cannot be priced, so the call is recorded as `cost_status: unknown`, unless the model's input and output rates are both $0.
+
 | Surface | Usage capture | Cost behavior |
 | --- | --- | --- |
 | OpenAI text, cache, reasoning, and audio token usage | Chat, Responses, OpenAI-compatible responses, and provider stream events | Token rates price captured buckets when the model has registry rates |

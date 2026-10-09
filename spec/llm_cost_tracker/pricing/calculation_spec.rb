@@ -76,6 +76,7 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
       LlmCostTracker.configure do |c|
         c.pricing.overrides = {
           "mistral/voxtral-mini-latest" => { "transcription_minute" => 0.003 },
+          "mistral/voxtral-small-latest" => { "input" => 0.1, "output" => 0.3, "transcription_minute" => 0.004 },
           "groq/whisper-large-v3" => { "transcription_minute" => 0.00185, "_minimum_billed_seconds" => 10 }
         }
       end
@@ -95,6 +96,12 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
       expect(priced).to have_attributes(cost_status: "complete")
       expect(priced.cost.total.round(8)).to eq(BigDecimal("0.01015"))
       expect(priced.priced_line_items.map(&:kind)).to eq(["transcription_minute"])
+    end
+
+    it "bills both the tokens and the minutes when the model also has token rates" do
+      priced = calculation("mistral/voxtral-small-latest", { input_tokens: 1_000_000, output_tokens: 100_000 }, [minutes(120)])
+
+      expect(priced.cost.total).to eq(BigDecimal("0.138"))
     end
 
     it "leaves tokens unknown when the call carries no unit the model is priced by" do
@@ -184,6 +191,19 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
     expect(no_usage.cost).to be_nil
     expect(with_search.cost.total).to eq(BigDecimal("0.01"))
     expect(with_search.cost_status).to eq(LlmCostTracker::Charges::CostStatus::UNKNOWN)
+  end
+
+  it "leaves a total-only token count unknown on a priced model, partial next to a priced service line, free on a free one" do
+    LlmCostTracker.configure { |c| c.pricing.overrides = { "free-model" => { "input" => 0.0, "output" => 0.0 } } }
+    search = LlmCostTracker::Charges::LineItem.build(dimension_key: "web_search_request", quantity: 1)
+    total_only = described_class.for(provider: "openai", model: "gpt-4o", tokens: { total_tokens: 500 }, pricing_mode: nil)
+    with_search = described_class.for(provider: "anthropic", model: "claude-sonnet-4-5", tokens: { total_tokens: 500 },
+                                      pricing_mode: nil, line_items: [search])
+    free = described_class.for(provider: "openai", model: "free-model", tokens: { total_tokens: 500 }, pricing_mode: nil)
+
+    expect([total_only.cost_status, total_only.cost]).to eq([LlmCostTracker::Charges::CostStatus::UNKNOWN, nil])
+    expect(with_search.cost_status).to eq(LlmCostTracker::Charges::CostStatus::PARTIAL)
+    expect(free.cost_status).to eq(LlmCostTracker::Charges::CostStatus::FREE)
   end
 
   it "keeps service rates dropped from the total on currency mismatch out of the snapshot" do

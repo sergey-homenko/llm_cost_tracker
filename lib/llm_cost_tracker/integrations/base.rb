@@ -54,9 +54,16 @@ module LlmCostTracker
         violation = contract_violation
         return Check.new(:warn, name, violation) if violation
         return Check.new(:warn, name, untested_version_message) if untested_version?
-        return Check.new(:ok, name, "#{name} integration installed") if installed?
+        return Check.new(:warn, name, "#{name} integration is enabled but not installed") unless installed?
 
-        Check.new(:warn, name, "#{name} integration is enabled but not installed")
+        missing = patch_targets.reject(&:target_class).map(&:constant_name).uniq
+        return Check.new(:ok, name, "#{name} integration installed") if missing.empty?
+
+        Check.new(
+          :warn,
+          name,
+          "#{name} integration installed without #{missing.join(', ')}; their calls are not recorded"
+        )
       end
 
       def enforce_budget!(request:, provider: self.provider, tags: nil)

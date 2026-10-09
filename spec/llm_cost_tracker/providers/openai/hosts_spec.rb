@@ -21,6 +21,13 @@ RSpec.describe LlmCostTracker::Providers::Openai::Hosts do
       end
     end
 
+    it "tracks every OpenAI regional data-residency host" do
+      %w[us eu au ca jp in sg kr gb ae].each do |region|
+        expect(LlmCostTracker::Parsers.find_for("https://#{region}.api.openai.com/v1/responses"))
+          .to be_a(LlmCostTracker::Providers::Openai::Parser), region
+      end
+    end
+
     it "does not match the canonical api.openai.com" do
       expect(described_class.data_residency?("api.openai.com")).to be false
     end

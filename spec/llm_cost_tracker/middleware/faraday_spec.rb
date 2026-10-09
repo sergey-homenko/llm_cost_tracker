@@ -129,7 +129,47 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:tags]).to include(user_id: 42)
   end
 
-  it "does not break requests when tag snapshot fails" do
+  it "passes requests whose Hash body is not valid JSON, recording an LLM call from its response" do
+    conn = Faraday.new do |f|
+      f.use :llm_cost_tracker
+      f.request :url_encoded
+      f.adapter :test do |stub|
+        stub.post("https://files.example.com/upload") { [200, {}, "ok"] }
+        stub.post("https://api.openai.com/v1/chat/completions") do
+          [200, { "Content-Type" => "application/json" }, openai_response_body]
+        end
+      end
+    end
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) { |*, payload| events << payload }
+
+    log = capture_log do
+      expect(conn.post("https://files.example.com/upload", { image: "\xFF".b }).status).to eq(200)
+      expect(conn.post("https://api.openai.com/v1/chat/completions", { model: "gpt-4o", note: "\xFF".b }).status).to eq(200)
+    end
+
+    expect(events.map { |event| event[:model] }).to eq(["gpt-4o"])
+    expect(log.scan("Unable to read the request body").size).to eq(1)
+  end
+
+  it "names the provider, model and failing line when it cannot process a response" do
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") { [200, { "Content-Type" => "application/json" }, openai_response_body] }
+      end
+    end
+    reader = instance_double(LlmCostTracker::Middleware::Faraday::ResponseReader)
+    allow(reader).to receive(:call).and_raise(TypeError, "Integer does not have #dig method")
+    allow(LlmCostTracker::Middleware::Faraday::ResponseReader).to receive(:new).and_return(reader)
+
+    log = capture_log { conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json) }
+
+    expect(log).to match(/Error processing openai response for model gpt-4o: TypeError: Integer does not have #dig method \(\S+:\d+/)
+  end
+
+  it "keeps the request, scoped tags and default tags when the middleware tags proc raises" do
+    LlmCostTracker.configure { |config| config.tags.default = { env: "prod" } }
     conn = Faraday.new(url: "https://api.openai.com") do |f|
       f.use :llm_cost_tracker, tags: -> { raise "missing request context" }
       f.adapter :test do |stub|
@@ -145,12 +185,12 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end
 
     log = capture_log do
-      response = conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
+      response = LlmCostTracker.with_tags(tenant_id: "acme") { conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json) }
       expect(response.status).to eq(200)
     end
 
     expect(log).to match(/Error resolving request tags: RuntimeError: missing request context/)
-    expect(events.first[:tags]).to eq({})
+    expect(events.first[:tags]).to eq(env: "prod", tenant_id: "acme")
   end
 
   it "passes the Faraday request env to callable tags when accepted" do
@@ -818,6 +858,25 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
 
     parsed = JSON.parse(captured_body)
     expect(parsed.dig("stream_options", "include_usage")).to be true
+  end
+
+  it "asks every built-in xAI and Mistral host's stream for its usage" do
+    bodies = {}
+    %w[api.x.ai us.api.x.ai api.mistral.ai api.eu.mistral.ai api.us.mistral.ai].each do |host|
+      connection = Faraday.new(url: "https://#{host}") do |f|
+        f.use :llm_cost_tracker
+        f.adapter(:test) do |stub|
+          stub.post("/v1/chat/completions") do |env|
+            bodies[host] = env.body
+            [200, { "Content-Type" => "text/event-stream" }, ""]
+          end
+        end
+      end
+      connection.post("/v1/chat/completions", { model: "m", stream: true }.to_json)
+    end
+
+    expect(bodies.transform_values { |body| JSON.parse(body).dig("stream_options", "include_usage") })
+      .to eq(bodies.keys.to_h { |host| [host, true] })
   end
 
   it "preserves an explicit stream_options.include_usage = false set by the caller" do
