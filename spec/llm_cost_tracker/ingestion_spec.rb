@@ -851,6 +851,20 @@ RSpec.describe "ActiveRecord async inbox" do
       .with("ActiveRecord ingestor failed: RuntimeError: boom")
   end
 
+  it "names the failing line when an ingestor error carries a backtrace" do
+    allow(LlmCostTracker::Logging).to receive(:warn)
+    error = begin
+      raise "boom"
+    rescue RuntimeError => e
+      e
+    end
+
+    LlmCostTracker::Ingestion::Worker.send(:handle_error, error)
+
+    expect(LlmCostTracker::Logging).to have_received(:warn)
+      .with(/\AActiveRecord ingestor failed: RuntimeError: boom \(.*ingestion_spec\.rb:\d+/)
+  end
+
   it "ignores wakeup races for threads that already stopped" do
     thread = double("thread", alive?: true)
     allow(thread).to receive(:wakeup).and_raise(ThreadError)

@@ -116,6 +116,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `doctor` warns when an enabled SDK integration cannot find one of the SDK classes it patches, such as a renamed resource in a newer SDK, instead of reporting it installed while those calls go unrecorded.
 - The Faraday middleware reads a request body only on LLM URLs, so a Hash body that is not valid JSON, such as binary form data, no longer fails requests to other hosts; an LLM request whose body cannot be read is recorded from its response.
 - A dashboard query that fails, such as on a statement timeout, shows a query failure page, logs the error and reports it through `Rails.error`, instead of asking you to run the install generator; the Tags page no longer shows an empty list when its query fails.
+- The warning for a response the Faraday middleware cannot process names the provider, the model and the failing line, and the async ingestor's warning names the failing line.
 
 ## [0.14.2] - 2026-09-28
 

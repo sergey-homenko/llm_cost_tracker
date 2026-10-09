@@ -35,6 +35,7 @@ module LlmCostTracker
         def read_request
           @body = Body.read(@env.body) || Body.multipart_model_json(@env, @parser)
           @request = @parser.safe_json_parse(@body)
+          @model = @parser.model_for(@url, @request)
           @streaming = @parser.streaming_request?(@url, @request)
         rescue StandardError => e
           @request = {}
@@ -83,7 +84,7 @@ module LlmCostTracker
         def enforce_budget
           Budget.enforce!(
             provider: @parser&.provider_for(@url),
-            model: @parser&.model_for(@url, @request),
+            model: @model,
             request: @request,
             tags: Tracker.build_tags(context_tags: @context_tags, metadata: @metadata)
           )
@@ -113,7 +114,8 @@ module LlmCostTracker
         rescue ActiveRecord::RecordNotUnique
           nil
         rescue StandardError => e
-          Logging.warn("Error processing response: #{e.class}: #{e.message}")
+          Logging.warn("Error processing #{@parser.provider_for(@url)} response for model #{@model || 'unknown'}: " \
+                       "#{e.class}: #{e.message}#{" (#{e.backtrace.first})" if e.backtrace}")
         end
 
         def record_interruption(error, latency_ms)

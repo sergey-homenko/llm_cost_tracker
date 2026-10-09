@@ -152,6 +152,22 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(log.scan("Unable to read the request body").size).to eq(1)
   end
 
+  it "names the provider, model and failing line when it cannot process a response" do
+    conn = Faraday.new(url: "https://api.openai.com") do |f|
+      f.use :llm_cost_tracker
+      f.adapter :test do |stub|
+        stub.post("/v1/chat/completions") { [200, { "Content-Type" => "application/json" }, openai_response_body] }
+      end
+    end
+    reader = instance_double(LlmCostTracker::Middleware::Faraday::ResponseReader)
+    allow(reader).to receive(:call).and_raise(TypeError, "Integer does not have #dig method")
+    allow(LlmCostTracker::Middleware::Faraday::ResponseReader).to receive(:new).and_return(reader)
+
+    log = capture_log { conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json) }
+
+    expect(log).to match(/Error processing openai response for model gpt-4o: TypeError: Integer does not have #dig method \(\S+:\d+/)
+  end
+
   it "keeps the request, scoped tags and default tags when the middleware tags proc raises" do
     LlmCostTracker.configure { |config| config.tags.default = { env: "prod" } }
     conn = Faraday.new(url: "https://api.openai.com") do |f|
