@@ -14,6 +14,10 @@ module LlmCostTracker
         YAML_EXTENSIONS = %w[.yml .yaml].freeze
         MANUAL_SOURCE = "manual"
 
+        def initialize(keep_unlisted: true)
+          @keep_unlisted = keep_unlisted
+        end
+
         def call(path:, registry:)
           payload = render(path: path, registry: registry)
           FileUtils.mkdir_p(File.dirname(path))
@@ -69,7 +73,7 @@ module LlmCostTracker
         end
 
         def own_entry?(model, attrs)
-          attrs["_source"].to_s == MANUAL_SOURCE || !Registry.builtin_prices.key?(model)
+          attrs["_source"].to_s == MANUAL_SOURCE || (@keep_unlisted && !Registry.builtin_prices.key?(model))
         end
 
         def merged_service_charges(registry, existing)
