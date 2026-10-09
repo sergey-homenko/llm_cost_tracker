@@ -68,6 +68,17 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
   describe "#parse" do
     let(:request_body) { { model: "gpt-4o", messages: [] }.to_json }
 
+    it "returns nil on non-200 responses" do
+      result = parser.parse(
+        request_url: "https://api.openai.com/v1/audio/speech",
+        request_body: { model: "tts-1", input: "Hello", voice: "alloy" }.to_json,
+        response_status: 429,
+        response_body: { error: { message: "slow down", code: 429 } }.to_json
+      )
+
+      expect(result).to be_nil
+    end
+
     let(:response_body) do
       {
         model: "gpt-4o",

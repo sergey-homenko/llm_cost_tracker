@@ -12,7 +12,7 @@ module LlmCostTracker
       TRANSIENT_PERSIST_ERRORS = [
         ActiveRecord::Deadlocked,
         ActiveRecord::LockWaitTimeout,
-        ActiveRecord::StatementTimeout,
+        ActiveRecord::QueryAborted,
         ActiveRecord::ConnectionNotEstablished,
         LlmCostTracker::TransactionAbortedError
       ].freeze

@@ -13,7 +13,7 @@ module LlmCostTracker
 
       def initialize(scope:, limit:)
         @scope = scope
-        @connection = LlmCostTracker::Call.connection
+        @connection = LlmCostTracker::Call.lease_connection
         limit = limit.to_i
         @limit = limit.positive? ? [limit, DEFAULT_LIMIT].min : DEFAULT_LIMIT
       end

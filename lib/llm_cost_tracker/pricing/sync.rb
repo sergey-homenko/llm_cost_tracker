@@ -80,7 +80,9 @@ module LlmCostTracker
           return [response, nil, {}, []] if response.not_modified
 
           snapshot = RemoteSnapshot.new(response.body)
-          remote = snapshot.registry(url: url, source_version: response.source_version, today: today)
+          remote = RegistryWriter.new.merge_with_existing(
+            path: path, registry: snapshot.registry(url: url, source_version: response.source_version, today: today)
+          )
           changes = registry_changes(current, remote)
           [response, remote, changes, SnapshotGuard.call(current: current, remote: remote, changes: changes)]
         end

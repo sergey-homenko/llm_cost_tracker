@@ -125,6 +125,8 @@ Unknown-cost line items are still stored. They affect `cost_status` but won't in
 | `budgets.on_exceeded` | `nil` | Callable receiving the budget payload |
 | `budgets.per_tag` | `{}` | One budget per distinct value of each declared tag, e.g. `{ tenant_id: { monthly: 1000 }, user_id: { daily: 25 } }`. Windows are `daily`, `weekly`, `monthly` and `total` (no time bound), `calls` caps the number of recorded calls per value, and a rule may set its own `behavior` and `on_exceeded` instead of following the global ones. Spend is read from `llm_cost_tracker_call_tags`; a fresh install already has the cost columns, and an install created before v0.14 adds them with `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets` and `bin/rails db:migrate`, then runs `bin/rails llm_cost_tracker:backfill_tag_costs` so calls recorded before the migration count. |
 
+`budgets.monthly`, `daily` and `per_call` take a non-negative number or a numeric string such as an `ENV` value; anything else, or an `on_exceeded` that does not respond to `call`, raises at `configure`.
+
 Budget payloads include `budget_type`, `total`, `budget`, `last_event`, `scope` (the tag key and value for a `per_tag` check, `nil` otherwise), and `stage` (`:pre_send` for preflight blocks under `:block_requests`, `:post_spend` for post-record checks). See [Budgets and Guardrails](budgets.md) for the pre-send estimate behavior.
 
 ## Storage

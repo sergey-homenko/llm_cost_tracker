@@ -7,7 +7,11 @@ module LlmCostTracker
     module Isolation
       class << self
         def guard(model = LlmCostTracker::Call, &)
-          writing { isolate(model, &) }
+          leased(model) { |connection| isolate(connection, model, &) }
+        end
+
+        def leased(model = LlmCostTracker::Call, &)
+          writing { model.with_connection(prevent_permanent_checkout: true, &) }
         end
 
         def writing(&)
@@ -16,8 +20,7 @@ module LlmCostTracker
 
         private
 
-        def isolate(model, &)
-          connection = model.connection
+        def isolate(connection, model, &)
           nested = connection.transaction_open?
           return yield unless nested
 

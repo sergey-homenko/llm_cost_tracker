@@ -311,12 +311,12 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(total).to eq(0.00265)
   end
 
-  it "updates daily and monthly call rollups in one bulk write" do
+  it "updates daily and monthly call rollups in one sorted bulk write, or one write per bucket on MySQL" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
-    received_rows = nil
+    writes = []
 
     allow(LlmCostTracker::CallRollup).to receive(:upsert_all).and_wrap_original do |method, rows, **options|
-      received_rows = rows
+      writes << rows.map { |row| row[:period] }
       method.call(rows, **options)
     end
 
@@ -326,8 +326,8 @@ RSpec.describe "ActiveRecord storage integration" do
       tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
 
-    expect(LlmCostTracker::CallRollup).to have_received(:upsert_all).once
-    expect(received_rows.map { |row| row[:period] }).to contain_exactly("month", "day")
+    mysql = LlmCostTracker::Ledger::Schema::Adapter.mysql?(ActiveRecord::Base.connection)
+    expect(writes).to eq(mysql ? [%w[day], %w[month]] : [%w[day month]])
   end
 
   it "keeps the header total_cost in sync with the sum of priced line items" do
@@ -447,7 +447,7 @@ RSpec.describe "ActiveRecord storage integration" do
   it "qualifies PostgreSQL rollup upsert totals" do
     connection = double(adapter_name: "PostgreSQL")
     allow(connection).to receive(:quote_column_name) { |name| %("#{name}") }
-    allow(LlmCostTracker::CallRollup).to receive(:connection).and_return(connection)
+    allow(LlmCostTracker::CallRollup).to receive(:lease_connection).and_return(connection)
     allow(LlmCostTracker::CallRollup)
       .to receive(:quoted_table_name)
       .and_return(%("llm_cost_tracker_call_rollups"))
@@ -456,6 +456,13 @@ RSpec.describe "ActiveRecord storage integration" do
 
     expect(sql).to include(%("total_cost" = "llm_cost_tracker_call_rollups"."total_cost" + excluded."total_cost"))
     expect(sql).to include(%("updated_at" = excluded."updated_at"))
+  end
+
+  it "rejects an unsupported adapter for rollup upserts" do
+    allow(LlmCostTracker::CallRollup).to receive(:lease_connection).and_return(double(adapter_name: "SQLite"))
+
+    expect { LlmCostTracker::CallRollup.send(:increment_on_duplicate) }
+      .to raise_error(LlmCostTracker::Error, /Use PostgreSQL or MySQL/)
   end
 
   it "treats MySQL-family adapters consistently for rollup upserts" do

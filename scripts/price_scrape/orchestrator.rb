@@ -28,7 +28,9 @@ module LlmCostTracker
 
       class Error < StandardError; end
 
-      def initialize(writer: LlmCostTracker::Pricing::Sync::RegistryWriter.new, today: Date.today, dry_run: false)
+      def initialize(writer: LlmCostTracker::Pricing::Sync::RegistryWriter.new(keep_unlisted: false),
+                     today: Date.today,
+                     dry_run: false)
         @writer = writer
         @today = today
         @dry_run = dry_run

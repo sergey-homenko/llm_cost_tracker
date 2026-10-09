@@ -117,6 +117,7 @@ RSpec.describe LlmCostTracker::Ledger::Isolation do
 
   it "returns the LLM response and records the call when the budget read after it times out inside the host transaction" do
     skip "uses PostgreSQL LOCK TABLE and lock_timeout" unless postgresql?
+    travel_to(Time.utc(2026, 10, 15, 12))
     LlmCostTracker.configuration.budgets.totals_source = :cache
     LlmCostTracker.configuration.budgets.monthly = 100
     body = { id: "chatcmpl_budget", model: "gpt-4o", choices: [],
@@ -194,6 +195,25 @@ RSpec.describe LlmCostTracker::Ledger::Isolation do
   ensure
     ActiveRecord::Base.connection_handler.remove_connection_pool("ActiveRecord::Base", role: :reading)
     ActiveRecord::Base.establish_connection(primary)
+  end
+
+  it "records from a thread outside the Rails executor without leasing a connection for good" do
+    LlmCostTracker.configuration.budgets.totals_source = :cache
+    LlmCostTracker.configuration.budgets.daily = 100
+    LlmCostTracker.configuration.budgets.per_tag = { tenant: { daily: 100 } }
+    previous = ActiveRecord.permanent_connection_checkout
+    ActiveRecord.permanent_connection_checkout = :disallowed
+
+    held = Thread.new do
+      LlmCostTracker.track(provider: "openai", model: "gpt-4o", tokens: { input_tokens: 1_000 }, tags: { tenant: "acme" })
+      ActiveRecord::Base.connection_pool.active_connection?
+    end.value
+
+    expect(held).to be_nil
+    expect(LlmCostTracker::Call.count).to eq(1)
+    expect(monthly_rollup_total).to eq(BigDecimal("0.0025"))
+  ensure
+    ActiveRecord.permanent_connection_checkout = previous
   end
 
   describe "on a database that rolls back the whole transaction on deadlock, like MySQL" do

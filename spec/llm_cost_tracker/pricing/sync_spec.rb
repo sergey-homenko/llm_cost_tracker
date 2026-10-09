@@ -129,6 +129,22 @@ RSpec.describe LlmCostTracker::Pricing::Sync do
       end
     end
 
+    it "keeps the file's own entries for models the bundled prices do not list and reports no change for them" do
+      Tempfile.create(["llm-prices", ".yml"]) do |file|
+        file.write({ "models" => { "openai/ft:gpt-4o:acme" => { "input" => 3.75, "output" => 15.0 } } }.to_yaml)
+        file.close
+
+        result = described_class.refresh(
+          path: file.path, url: source_url,
+          fetcher: CuratedPriceFetcher.new(response(body: JSON.generate(remote_registry)))
+        )
+
+        expect(result.changes).not_to have_key("openai/ft:gpt-4o:acme")
+        expect(YAML.safe_load_file(file.path, aliases: false).dig("models", "openai/ft:gpt-4o:acme", "input"))
+          .to eq(3.75)
+      end
+    end
+
     it "keeps credentials in the snapshot URL out of the pricing file and the printed source" do
       Tempfile.create(["llm-prices", ".yml"]) do |file|
         result = described_class.refresh(

@@ -5,12 +5,18 @@ require "fileutils"
 require "json"
 require "yaml"
 
+require_relative "../registry"
+
 module LlmCostTracker
   module Pricing
     module Sync
       class RegistryWriter
         YAML_EXTENSIONS = %w[.yml .yaml].freeze
         MANUAL_SOURCE = "manual"
+
+        def initialize(keep_unlisted: true)
+          @keep_unlisted = keep_unlisted
+        end
 
         def call(path:, registry:)
           payload = render(path: path, registry: registry)
@@ -28,6 +34,18 @@ module LlmCostTracker
           json ? "#{JSON.pretty_generate(merged)}\n" : YAML.dump(merged)
         end
 
+        def merge_with_existing(path:, registry:)
+          existing = read_existing(path)
+          return registry unless existing.is_a?(Hash)
+
+          merged = registry.dup
+          merged["models"] = merged_models(registry, existing) if existing["models"].is_a?(Hash)
+          if existing["service_charges"].is_a?(Hash)
+            merged["service_charges"] = merged_service_charges(registry, existing)
+          end
+          merged
+        end
+
         private
 
         def canonicalize(value, json:)
@@ -43,27 +61,19 @@ module LlmCostTracker
           json && defined?(JSON::Fragment) ? JSON::Fragment.new(value.to_f.to_s) : value.to_f
         end
 
-        def merge_with_existing(path:, registry:)
-          existing = read_existing(path)
-          return registry unless existing.is_a?(Hash)
-
-          merged = registry.dup
-          merged["models"] = merged_models(registry, existing) if existing["models"].is_a?(Hash)
-          if existing["service_charges"].is_a?(Hash)
-            merged["service_charges"] = merged_service_charges(registry, existing)
-          end
-          merged
-        end
-
         def merged_models(registry, existing)
           merged = registry.fetch("models", {}).dup
           existing.fetch("models", {}).each do |model, attrs|
-            next unless attrs.is_a?(Hash) && attrs["_source"].to_s == MANUAL_SOURCE
+            next unless attrs.is_a?(Hash) && own_entry?(model, attrs)
             next if merged.key?(model)
 
             merged[model] = attrs
           end
           merged
+        end
+
+        def own_entry?(model, attrs)
+          attrs["_source"].to_s == MANUAL_SOURCE || (@keep_unlisted && !Registry.builtin_prices.key?(model))
         end
 
         def merged_service_charges(registry, existing)

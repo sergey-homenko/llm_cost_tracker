@@ -78,6 +78,7 @@ module LlmCostTracker
         table_check,
         column_check,
         *dependent_core_schema_checks,
+        per_tag_budget_check,
         call_rollups_check,
         IngestionCheck.new.call,
         PriceCheck.new.call,
@@ -93,6 +94,18 @@ module LlmCostTracker
                         schema: schema,
                         table: table).call
       end
+    end
+
+    def per_tag_budget_check
+      return if LlmCostTracker.configuration.budgets.per_tag.empty? || !LlmCostTracker::CallTag.table_exists?
+      return if Budget::PerTag.columns?
+
+      Check.new(
+        :error,
+        "per-tag budgets",
+        "budgets.per_tag is set but llm_cost_tracker_call_tags has no cost columns, so no per-tag budget is " \
+        "enforced; run bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets and migrate"
+      )
     end
 
     def configuration_check
@@ -213,7 +226,7 @@ module LlmCostTracker
     end
 
     def active_record_available?
-      LlmCostTracker::Call.connection
+      LlmCostTracker::Call.lease_connection
       true
     rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError
       false

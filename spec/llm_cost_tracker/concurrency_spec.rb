@@ -231,8 +231,8 @@ RSpec.describe "concurrency", :aggregate_failures do
       expect(values.sort).to eq(Array.new(8) { |i| "req_#{i}" })
     end
 
-    it "keeps scoped tags isolated across fibers on one thread, leaves none behind, and lends them to threads " \
-       "started inside the block while it runs" do
+    it "keeps scoped tags isolated across fibers on one thread, leaves none behind, and keeps them from threads, " \
+       "a thread pool's included" do
       recorded = []
       fibers = %w[fiber_a fiber_b].map do |request_id|
         Fiber.new do
@@ -261,7 +261,7 @@ RSpec.describe "concurrency", :aggregate_failures do
          Thread.new { queue.pop && LlmCostTracker::Tags::Context.tags }]
       end
       queue << true
-      expect(threads.map(&:value)).to eq([{ request_id: "parent" }, {}])
+      expect(threads.map(&:value)).to eq([{}, {}])
     end
   end
 

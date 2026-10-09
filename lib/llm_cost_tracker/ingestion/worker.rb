@@ -39,17 +39,12 @@ module LlmCostTracker
           return true unless Ingestion.async?
 
           prepare!
-          deadline = Time.now.utc + flush_timeout_seconds(timeout)
-          loop do
-            return true unless Ingestion::Batch.new(identity: identity).pending?
-            return false unless time_left(deadline).positive?
-            next unless ingest_once(require_lease: require_lease).zero?
-
-            duration = [INTERVAL_SECONDS, time_left(deadline)].min
-            return false unless duration.positive?
-
-            sleep(duration)
+          drained = drain_until(Time.now.utc + flush_timeout_seconds(timeout), require_lease)
+          unless drained
+            Logging.warn("Ingestion::Worker.flush! timed out with #{Ingestion::InboxEntry.pending.count} " \
+                         "inbox row(s) still pending")
           end
+          drained && Ingestion::InboxEntry.quarantined.none?
         end
 
         def shutdown!(timeout: nil, drain: true)
@@ -117,6 +112,19 @@ module LlmCostTracker
         def prepare!
           Ingestion.ensure_current_schema!
           MUTEX.synchronize { reset_after_fork! }
+        end
+
+        def drain_until(deadline, require_lease)
+          loop do
+            return true unless Ingestion::Batch.new(identity: identity).pending?
+            return false unless time_left(deadline).positive?
+            next unless ingest_once(require_lease: require_lease).zero?
+
+            duration = [INTERVAL_SECONDS, time_left(deadline)].min
+            return false unless duration.positive?
+
+            sleep(duration)
+          end
         end
 
         def time_left(deadline)

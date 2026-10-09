@@ -128,12 +128,16 @@ module LlmCostTracker
         pricing_mode: pricing_mode,
         metadata: tags
       )
+      completed = false
       yield collector
-    rescue Exception # rubocop:disable Lint/RescueException
-      collector&.finish!(errored: true)
-      raise
-    else
+      completed = true
       collector.finish!
+    rescue Exception # rubocop:disable Lint/RescueException
+      collector&.finish!(errored: true) unless completed
+      completed = true
+      raise
+    ensure
+      collector&.finish! unless completed
     end
   end
 end

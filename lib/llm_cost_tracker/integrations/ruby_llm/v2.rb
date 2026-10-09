@@ -21,6 +21,16 @@ module LlmCostTracker
         EVENTS = [*OPERATIONS, :compaction, :request, :usage].map { |name| "#{name}.ruby_llm" }.concat(JOBS).freeze
         CACHE_CREATED = :llm_cost_tracker_ruby_llm_cache_created
 
+        module TagRelay
+          module_function
+
+          def instrument(*) = yield
+
+          def capture_context = LlmCostTracker::Tags::Context.scoped
+
+          def with_context(tags, &) = LlmCostTracker::Tags::Context.with(tags, &)
+        end
+
         class << self
           def integration_name = :ruby_llm
 
@@ -30,6 +40,8 @@ module LlmCostTracker
             @subscriptions ||= EVENTS.map { |name| ActiveSupport::Notifications.subscribe(name, self) }
             RubyLLM.config.instrumenter ||= ActiveSupport::Notifications
             Seams.bridge
+            instrumentation = "RubyLLM::Support::Instrumentation".safe_constantize
+            instrumentation.subscribe(TagRelay) if instrumentation.respond_to?(:capture_context)
           end
 
           def status

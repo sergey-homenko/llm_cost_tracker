@@ -107,11 +107,11 @@ module LlmCostTracker
       end
 
       def quote_column(name)
-        scope.connection.quote_column_name(name)
+        scope.lease_connection.quote_column_name(name)
       end
 
       def quoted_key
-        scope.connection.quote(key)
+        scope.lease_connection.quote(key)
       end
     end
   end

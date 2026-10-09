@@ -259,9 +259,8 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
       config.budgets.per_tag = { tenant_id: { monthly: 10 } }
     end
 
-    def track(model)
-      LlmCostTracker.track(provider: "openai", model: model, tokens: { input_tokens: 1_000_000 },
-                           tags: { tenant_id: 7 })
+    def track(model, tags = { tenant_id: 7 })
+      LlmCostTracker.track(provider: "openai", model: model, tokens: { input_tokens: 1_000_000 }, tags: tags)
     end
 
     def price(rates)
@@ -290,6 +289,36 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
 
       expect(described_class.call.recomputed).to eq(2)
       expect(notified).to be_empty
+    end
+
+    it "does not notify a per-tag rule that repricing leaves under its limit" do
+      track("late-model")
+      price("late-model" => 4.0)
+
+      described_class.call
+
+      expect(notified).to be_empty
+    end
+
+    it "does not notify a calls limit because repricing added cost" do
+      LlmCostTracker.configuration.budgets.per_tag = { run_id: { calls: 1 } }
+      3.times { track("late-model", { run_id: "r1" }) }
+      notified.clear
+      price("late-model" => 1.0)
+
+      described_class.call
+
+      expect(notified).to be_empty
+    end
+
+    it "notifies once when repricing pushes a total limit over" do
+      LlmCostTracker.configuration.budgets.per_tag = { run_id: { total: 2.5 } }
+      3.times { track("late-model", { run_id: "r1" }) }
+      price("late-model" => 1.0)
+
+      described_class.call
+
+      expect(notified).to eq([[:total, { key: "run_id", value: "r1" }]])
     end
 
     it "logs instead of raising when the budget read after repricing fails" do

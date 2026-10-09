@@ -277,6 +277,20 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "records an attempt that fails between pause_turn segments as unknown, not as a copy of the segment before it" do
+      WebMock.stub_request(:post, messages_url).to_return(
+        reply(anthropic_message(id: "msg_p1", usage: { input_tokens: 20, output_tokens: 200 }, stop_reason: "pause_turn")),
+        reply({ error: { message: "boom" } }, status: 500),
+        reply(anthropic_message(id: "msg_p2", usage: { input_tokens: 30, output_tokens: 400 }))
+      )
+
+      capture_sdk_events do |events|
+        chat("claude-sonnet-4-6", :anthropic, context: no_retry_delay).ask("research")
+        expect(events.map { |event| event.values_at(:provider_response_id, :usage_source, :input_tokens) })
+          .to eq([["msg_p1", "sdk_response", 20], [nil, "unknown", 0], ["msg_p2", "sdk_response", 30]])
+      end
+    end
+
     it "prices a chat at the tier its provider options set, and its manual compaction, which does not send them, " \
        "at standard rates" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(reply(response_object(
@@ -295,6 +309,29 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
         expect(events.map { |event| event.values_at(:provider_response_id, :pricing_mode) })
           .to eq([%w[resp_c1 flex], ["cmp_1", nil]])
       end
+    end
+  end
+
+  describe "token counts of an attempt without a response body" do
+    def event_for(operation, model:, **tokens)
+      usage = { operation: operation, provider: "gemini", model: model, status: :succeeded,
+                tokens: RubyLLM::Tokens.new(**tokens) }
+      described_class::Attempt::TokenCounts.new(usage, { streaming: true }, raw: nil, request: {}).event(result: nil)
+    end
+
+    it "splits a transcription's input tokens into audio tokens on an audio-priced model, without counting them twice" do
+      expect(event_for(:transcription, model: "gemini-2.5-flash", input: 1000, output: 50).token_usage)
+        .to have_attributes(input_tokens: 0, audio_input_tokens: 1000, output_tokens: 50)
+    end
+
+    it "keeps a chat's input tokens as text on an audio-priced model" do
+      expect(event_for(:chat, model: "gemini-2.5-flash", input: 1000, output: 50).token_usage)
+        .to have_attributes(input_tokens: 1000, audio_input_tokens: 0, output_tokens: 50)
+    end
+
+    it "splits an image call's output tokens into image tokens without counting them twice" do
+      expect(event_for(:image, model: "gemini-2.5-flash-image", input: 10, output: 1290).token_usage)
+        .to have_attributes(output_tokens: 0, image_output_tokens: 1290)
     end
   end
 
@@ -855,7 +892,9 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
                                                  .ask("hi")
           end
         end
-        expect(events.map { |event| event[:tags].values_at(:run_id, :feature) }).to all(eq(%w[run-42 research]))
+        relayed = RubyLLM::Support::Instrumentation.respond_to?(:capture_context)
+        expect(events.map { |event| event[:tags][:run_id] }).to all(eq("run-42"))
+        expect(events.count { |event| event[:tags][:feature] == "research" }).to eq(relayed ? 4 : 2)
         expect(events.size).to eq(4)
       end
     end

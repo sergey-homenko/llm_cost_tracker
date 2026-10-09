@@ -338,6 +338,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
   end
 
   it "prices newly scraped models at their published rates" do
+    travel_to(Time.utc(2026, 10, 9, 12))
     models = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
     scraped = %w[gemini-3.1-pro-preview-customtools gemini-3.8-flash-tts gemini-2.5-flash-preview-tts gemini-embedding-2]
     LlmCostTracker.configure do |config|

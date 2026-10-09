@@ -8,7 +8,7 @@ module LlmCostTracker
       class << self
         def with(tags)
           stack = Fiber[KEY] || []
-          scope = [Sanitizer.call((tags || {}).to_h)]
+          scope = [Thread.current, Sanitizer.call((tags || {}).to_h)]
           Fiber[KEY] = stack + [scope]
           yield
         ensure
@@ -20,7 +20,13 @@ module LlmCostTracker
           config = LlmCostTracker.configuration
           base = config.tags.static_sanitized_default ||
                  Sanitizer.call(call_default_tags(config.tags.default).to_h)
-          base.merge(*Array(Fiber[KEY]).flatten)
+          base.merge(scoped)
+        end
+
+        def scoped
+          Array(Fiber[KEY]).each_with_object({}) do |(owner, tags), merged|
+            merged.merge!(tags) if owner.equal?(Thread.current)
+          end
         end
 
         def call_default_tags(proc_or_lambda)

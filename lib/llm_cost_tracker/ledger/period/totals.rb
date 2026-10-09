@@ -69,7 +69,7 @@ module LlmCostTracker
         end
 
         def quote(value)
-          LlmCostTracker::Call.connection.quote(value)
+          LlmCostTracker::Call.lease_connection.quote(value)
         end
       end
     end

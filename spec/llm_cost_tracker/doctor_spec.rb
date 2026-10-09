@@ -114,7 +114,7 @@ RSpec.describe LlmCostTracker::Doctor do
   end
 
   it "treats a missing AR connection as absent tables so Doctor stays usable before db:migrate" do
-    allow(LlmCostTracker::Call).to receive(:connection).and_raise(ActiveRecord::ConnectionNotEstablished)
+    allow(LlmCostTracker::Call).to receive(:lease_connection).and_raise(ActiveRecord::ConnectionNotEstablished)
 
     expect(described_class::Probe.table_exists?("llm_cost_tracker_calls")).to be false
   end
@@ -189,6 +189,27 @@ RSpec.describe LlmCostTracker::Doctor do
 
       expect(check).to have_attributes(status: :warn)
       expect(check.message).to include("unused async ingestion tables")
+      expect(check.message).not_to include("never reached the ledger")
+    end
+
+    it "counts inbox rows that never reached the ledger when inline mode is set" do
+      LlmCostTracker::Ingestion::InboxEntry.create!(event_id: "left", total_cost: 1.0, tracked_at: Time.now.utc, payload: "{}")
+      LlmCostTracker.configure { |config| config.ingestion.mode = :inline }
+
+      check = described_class.call.find { |item| item.name == "inline ingestion" }
+
+      expect(check).to have_attributes(status: :warn, message: include("1 inbox row(s) never reached the ledger"))
+    end
+
+    it "warns when quarantined inbox rows keep their spend out of the ledger" do
+      LlmCostTracker::Ingestion::InboxEntry.create!(
+        event_id: "bad-event", total_cost: 1.0, tracked_at: Time.now.utc, payload: "{",
+        attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
+      )
+
+      check = described_class.call.find { |item| item.name == "async ingestion" }
+
+      expect(check).to have_attributes(status: :warn, message: include("1 inbox row(s) are quarantined"))
     end
 
     it "passes inline mode when the async tables have been dropped" do
@@ -235,6 +256,23 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check).to have_attributes(status: :error)
       expect(check.message).to include("llm_cost_tracker_call_tags table is missing")
       expect(check.message).to include("docs/upgrading.md")
+    end
+
+    it "does not report per-tag budgets when the call tags have the cost columns" do
+      LlmCostTracker.configuration.budgets.per_tag = { tenant: { daily: 1 } }
+
+      expect(described_class.call.map(&:name)).not_to include("per-tag budgets")
+    end
+
+    it "fails when per-tag budgets are set but the call tags have no cost columns" do
+      ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_call_tags, :tracked_at)
+      ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_call_tags, :total_cost)
+      LlmCostTracker::CallTag.reset_column_information
+      LlmCostTracker.configuration.budgets.per_tag = { tenant: { daily: 1 } }
+
+      check = described_class.call.find { |item| item.name == "per-tag budgets" }
+
+      expect(check).to have_attributes(status: :error, message: include("upgrade_per_tag_budgets"))
     end
 
     it "reports recorded calls" do

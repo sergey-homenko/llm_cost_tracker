@@ -24,7 +24,17 @@ module LlmCostTracker
       private
 
       def async_ok
-        Check.new(:ok, "async ingestion", "inbox and ingestion lease tables are on the current schema")
+        quarantined = LlmCostTracker::Ingestion::InboxEntry.quarantined.count
+        if quarantined.zero?
+          return Check.new(:ok, "async ingestion", "inbox and ingestion lease tables are on the current schema")
+        end
+
+        Check.new(
+          :warn,
+          "async ingestion",
+          "#{quarantined} inbox row(s) are quarantined, so their spend is not in the ledger; " \
+          "requeue them as docs/operations.md shows once the cause is fixed"
+        )
       end
 
       def inline_check
@@ -38,9 +48,17 @@ module LlmCostTracker
         Check.new(
           :warn,
           "inline ingestion",
-          "config.ingestion.mode = :inline but found unused async ingestion tables: #{leftovers.join(', ')}. " \
+          "config.ingestion.mode = :inline but found unused async ingestion tables: #{leftovers.join(', ')}" \
+          "#{undrained_note(leftovers)}. " \
           "Set config.ingestion.mode = :async to keep the inbox path or drop the tables."
         )
+      end
+
+      def undrained_note(leftovers)
+        return unless leftovers.include?(LlmCostTracker::Ingestion::InboxEntry.table_name)
+
+        rows = LlmCostTracker::Ingestion::InboxEntry.count
+        "; #{rows} inbox row(s) never reached the ledger, so drain them in :async mode first" if rows.positive?
       end
 
       def inline_leftover_tables

@@ -47,7 +47,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Bundled prices drop the models Mistral lists as retired, with their aliases such as `magistral-medium-latest`, and any model its provider has stopped listing for 90 days.
 - Vertex AI calls through RubyLLM are priced at the tier their `usageMetadata.trafficType` reports, and Bedrock Converse calls at their `serviceTier`, instead of at standard rates; Provisioned Throughput, Bedrock `reserved` and tiers no bundled price lists become `unknown`, so they no longer count toward money budgets but still count toward `calls` limits, and `provisioned_throughput_*` or `reserved_*` rates in `pricing.overrides` price them.
 - Calls through the official OpenAI SDK's Bedrock provider (`OpenAI::Providers.bedrock`) are recorded as `bedrock` instead of `openai`.
-- `with_tags` tags reach threads and fibers started inside its block, RubyLLM's tool threads included, until the block ends.
+- `with_tags` tags reach fibers started inside its block, and on RubyLLM 2.1 the tool threads RubyLLM starts, until the block ends; other threads, such as a thread pool's, get none.
 
 ### Fixed
 
@@ -92,6 +92,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Claude calls on Vertex AI under a versioned model id, such as `claude-sonnet-4-5@20250929`, are priced instead of recorded with unknown cost.
 - Calls made under a read-only database role, such as a GET request with Rails' automatic role switching, are recorded through the writing role instead of lost, and the async inbox no longer binds to a replica; budget reads use the writing role too.
 - A stream event spanning many network reads, such as a streamed image through Faraday, is parsed in linear instead of quadratic time.
+- Recording an openai SDK response no longer walks its embedding vectors, which added up to 60% to a large `embeddings.create` call.
+- Recording a call from a thread outside the Rails executor, such as a thread pool's, no longer keeps a database connection checked out until the thread exits, and the gem no longer calls `ActiveRecord::Base.connection`, so it works with `permanent_connection_checkout = :disallowed`.
+- `close` on an official openai or anthropic SDK stream closes its HTTP response and records the call, instead of leaving the openai connection open and unrecorded.
+- `track_stream` records the call when its block leaves with `return`, `break` or `throw`; it was not recorded.
+- `doctor` reports an error when `budgets.per_tag` is set but `llm_cost_tracker_call_tags` lacks the cost columns, which leaves every per-tag budget unenforced.
+- `Ingestion::Worker.flush!` returns `false` while quarantined inbox rows keep spend out of the ledger and logs when it times out, and `doctor` warns about quarantined rows and, in inline mode, inbox rows that never reached the ledger.
+- On PostgreSQL, re-running an upgrade generator's migration after its concurrent index build was cancelled rebuilds the invalid index instead of keeping it and dropping the working one.
+- The async ingestor treats a statement timeout, a cancelled query or a dropped connection as transient, so a slow or locked ledger no longer quarantines good inbox rows.
+- On MySQL, concurrent calls for different providers under `totals_source: :cache` no longer deadlock on the rollup upsert and lose increments; rollup rows are written one per statement in a fixed order.
+- The Faraday middleware reads a multipart request's model only from a part starting at the request's boundary, so an uploaded file that contains a `model` field can no longer change the recorded model.
+- `prices:refresh` and a re-run of the prices generator keep `pricing.file` entries for models the bundled prices do not list, such as fine-tuned models, instead of deleting them unless marked `"_source": "manual"`, and the refresh change list no longer shows kept entries as removed.
+- `budgets.monthly`, `daily` and `per_call` given as a numeric string, such as an `ENV` value, are used as numbers instead of failing every call or never firing; a non-numeric or negative value, or an `on_exceeded` that cannot be called, raises at `configure`.
 
 ## [0.14.2] - 2026-09-28
 

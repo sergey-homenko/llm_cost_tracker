@@ -18,7 +18,7 @@ Responsibilities:
 
 - Expose `configure`, `track`, `track_stream`, and `with_tags`.
 - Keep configuration immutable after `configure`.
-- Merge scoped tags and default tags per fiber, lending them to threads and fibers started inside `with_tags` until it returns, and to no others.
+- Merge scoped tags and default tags per fiber, lending them to fibers of the same thread started inside `with_tags` until it returns, and to the tool threads RubyLLM 2.1 starts.
 - Report installation, integration, pricing, ingestion, and schema health.
 
 This module can orchestrate other modules, but should not contain provider parsing, SQL details, dashboard aggregation, or pricing-source logic.

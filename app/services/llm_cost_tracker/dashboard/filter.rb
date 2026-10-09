@@ -91,7 +91,7 @@ module LlmCostTracker
 
       def matchable?(values)
         values.none? { |value| value.include?("\0") } ||
-          !LlmCostTracker::Ledger::Schema::Adapter.postgresql?(scope.connection)
+          !LlmCostTracker::Ledger::Schema::Adapter.postgresql?(scope.lease_connection)
       end
 
       def normalized_string(value, name)

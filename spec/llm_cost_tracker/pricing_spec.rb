@@ -229,6 +229,7 @@ RSpec.describe LlmCostTracker::Pricing do
     end
 
     it "prices Gemini image input, and audio input on single-rate models, at the input rate" do
+      travel_to(Time.utc(2026, 10, 9, 12))
       flash = cost_for(provider: "gemini", model: "gemini-2.5-flash", image_input_tokens: 1_000_000)
       batch = cost_for(provider: "gemini", model: "gemini-3.8-flash", pricing_mode: "batch",
                        image_input_tokens: 1_000_000, audio_input_tokens: 1_000_000)

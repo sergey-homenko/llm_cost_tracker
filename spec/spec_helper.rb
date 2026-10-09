@@ -66,6 +66,7 @@ RSpec.configure do |config|
   end
 
   config.after(:each) do
+    travel_back
     ActiveSupport::Notifications.unsubscribe(LlmCostTracker::Tracker::EVENT_NAME)
   end
 end

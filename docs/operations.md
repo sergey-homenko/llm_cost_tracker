@@ -4,7 +4,7 @@ Production use depends on ActiveRecord health, bounded hot paths, and current pr
 
 ## Production Defaults
 
-- Size the ActiveRecord connection pool for your app's concurrency. If `config.ingestion.mode = :async`, add headroom for the local ingestor thread, which checks out an ordinary ActiveRecord connection. Inbox writes do not: every one of them goes through a pool the gem owns, sized by `config.ingestion.pool_size` (default 2), so that a staged event survives a caller rollback. Raise that setting, not the app pool, if inbox writes start queueing. The default inline path shares the caller's connection and joins its transaction through a savepoint, so a failed ledger write rolls back only that savepoint, unless the database has already discarded the whole transaction (a deadlock on MySQL), which raises `TransactionAbortedError`.
+- Size the ActiveRecord connection pool for your app's concurrency. If `config.ingestion.mode = :async`, add headroom for the local ingestor thread, which checks out an ordinary ActiveRecord connection. Inbox writes do not: every one of them goes through a pool the gem owns, sized by `config.ingestion.pool_size` (default 2), so that a staged event survives a caller rollback. Raise that setting, not the app pool, if inbox writes start queueing. The default inline path shares the caller's connection, or checks one out only for the write when the thread holds none, and joins its transaction through a savepoint, so a failed ledger write rolls back only that savepoint, unless the database has already discarded the whole transaction (a deadlock on MySQL), which raises `TransactionAbortedError`.
 - Ledger, rollup and inbox writes and budget reads use `ActiveRecord.writing_role` with writes allowed, so calls made inside `connected_to(role: :reading)` or under Rails' automatic role switching are recorded on the primary.
 - Automatic capture never fails an LLM call because recording failed: only `BudgetExceededError`, `UnknownPricingError` under `:raise`, and `TransactionAbortedError` reach your code, and other recording failures are logged. `LlmCostTracker.track` and `track_stream` raise them, except that an exception from your `track_stream` block wins over any but `TransactionAbortedError`. Under `:block_requests`, a database error during the pre-send budget read also reaches your code, and the request is not sent.
 - Keep `tags.default` callables fast and thread-safe.
@@ -45,13 +45,13 @@ LlmCostTracker::Ingestion::Worker.flush!(timeout: 5)
 LlmCostTracker::Ingestion::Worker.shutdown!(timeout: 5, drain: true)
 ```
 
-The default process `at_exit` hook stops the local ingestor without forcing every exiting process to drain the shared inbox. Rows stay in the database until another process's ingestor claims them. A process starts its ingestor on its first async `Tracker.record`, not at boot, so after a restart, or when only short-lived processes record, rows wait for the next tracked call. Use `flush!` or `shutdown!(drain: true)` when a job or release step must wait for the ledger to catch up.
+The default process `at_exit` hook stops the local ingestor without forcing every exiting process to drain the shared inbox. Rows stay in the database until another process's ingestor claims them. A process starts its ingestor on its first async `Tracker.record`, not at boot, so after a restart, or when only short-lived processes record, rows wait for the next tracked call. Use `flush!` or `shutdown!(drain: true)` when a job or release step must wait for the ledger to catch up. Both return `false` when the wait times out, which is logged, or quarantined rows remain.
 
 `shutdown!` is one-way for the calling process: subsequent `Tracker.record` calls still enqueue to the inbox (so events aren't lost), but the local worker thread won't respawn — another process's ingestor picks them up once that process has recorded a call. Don't call `shutdown!` mid-process unless you intend that contract.
 
 ## Ruby Concurrency
 
-Threaded Rails servers and fiber schedulers are supported. Scoped tags live in fiber storage: each thread and fiber has its own, and one started inside `with_tags` sees its tags until the block ends. Stream collectors snapshot tag context at creation time, which keeps tags stable when a stream finishes in another thread or fiber.
+Threaded Rails servers and fiber schedulers are supported. Scoped tags live in fiber storage: each thread and fiber has its own, and a fiber started inside `with_tags` sees its tags until the block ends. A thread does not, except a tool thread RubyLLM 2.1 starts, so wrap work handed to another thread or a thread pool in its own `with_tags`. Stream collectors snapshot tag context at creation time, which keeps tags stable when a stream finishes in another thread or fiber.
 
 Ractors are not a supported runtime boundary for this gem. Rails, ActiveRecord connections, Faraday middleware registration, configuration objects, Mutex-backed caches, and the local ingestor thread all assume normal process/thread Rails execution. If an application uses Ractors for CPU-bound work, keep provider calls and tracking in the main Rails execution context, or send plain usage data back and call `LlmCostTracker.track` there.
 
@@ -62,7 +62,7 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion.mode = :inline`) surface as `:warn`. Runtime data conditions (quarantined inbox rows) log to `Rails.logger` from the ingestion worker at the moment they occur — nothing runs `doctor` while the app serves traffic, so those signals must reach the host's own logger.
+`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion.mode = :inline`) surface as `:warn`, as do quarantined inbox rows and, in inline mode, inbox rows that never reached the ledger. The ingestion worker also logs each row to `Rails.logger` when it is quarantined — nothing runs `doctor` while the app serves traffic, so that signal must reach the host's own logger.
 
 `verify_capture` records a synthetic event and verifies both notifications and ActiveRecord persistence.
 
