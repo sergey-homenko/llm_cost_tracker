@@ -855,7 +855,9 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
                                                  .ask("hi")
           end
         end
-        expect(events.map { |event| event[:tags].values_at(:run_id, :feature) }).to all(eq(%w[run-42 research]))
+        relayed = RubyLLM::Support::Instrumentation.respond_to?(:capture_context)
+        expect(events.map { |event| event[:tags][:run_id] }).to all(eq("run-42"))
+        expect(events.count { |event| event[:tags][:feature] == "research" }).to eq(relayed ? 4 : 2)
         expect(events.size).to eq(4)
       end
     end

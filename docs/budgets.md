@@ -131,7 +131,7 @@ Bounds:
 - A running stream is not cut; the next call is blocked.
 - Under `ingestion.mode = :async`, a run counts only the calls the worker has drained.
 - An unpriced call adds nothing to `total` until it is priced; `calls` counts it.
-- `with_tags` reaches threads and fibers started inside its block, until the block ends, but not threads that already exist, such as a thread pool's; code that makes a run's calls on those must set `run_id` itself.
+- `with_tags` reaches fibers started inside its block, and on RubyLLM 2.1 the tool threads RubyLLM starts, until the block ends, but not other threads, such as a thread pool's; code that makes a run's calls on those must set `run_id` itself.
 - `total` and `calls` have no window, so a reused run id keeps counting its earlier calls until `llm_cost_tracker:prune` deletes them.
 - A check reads every call the run has recorded, so it slows as the run grows: measured on 3M tag rows, a 5,000-call run reads in about 1–15 ms on PostgreSQL and 5–140 ms on MySQL, warm to cold cache. With both limits, a `:block_requests` rule makes up to four reads per call: two before it is sent and two after it is recorded.
 
