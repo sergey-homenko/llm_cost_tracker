@@ -56,16 +56,18 @@ RSpec.describe LlmCostTracker::Pricing::Sync::RegistryWriter do
     )
   end
 
-  it "ignores manual entries that are missing the _source marker" do
+  it "keeps unmarked entries for models the bundled prices do not list and drops the others the remote omits" do
     path = path_for("prices.json")
-    File.write(path, JSON.pretty_generate("models" => { "openai/legacy" => { "input" => 9.0 } }))
+    File.write(path, JSON.pretty_generate("models" => { "openai/gpt-4o" => { "input" => 9.0 },
+                                                        "openai/ft:gpt-4o:acme" => { "input" => 3.75 } }))
 
     writer.call(
       path: path,
       registry: { "models" => { "openai/gpt-x" => { "input" => 2.0 } } }
     )
 
-    expect(JSON.parse(File.read(path))["models"]).to eq("openai/gpt-x" => { "input" => 2.0 })
+    expect(JSON.parse(File.read(path))["models"])
+      .to eq("openai/ft:gpt-4o:acme" => { "input" => 3.75 }, "openai/gpt-x" => { "input" => 2.0 })
   end
 
   it "writes hash keys sorted alphabetically at every level" do
