@@ -123,7 +123,7 @@ module LlmCostTracker
 
         def pluck_by_exact_value(rows, values, aggregates)
           column = :value
-          if Ledger::Schema::Adapter.mysql?(LlmCostTracker::CallTag.connection)
+          if Ledger::Schema::Adapter.mysql?(LlmCostTracker::CallTag.lease_connection)
             column = Arel.sql("CAST(value AS BINARY)")
             rows = rows.where(column.in(values))
           end
@@ -138,14 +138,14 @@ module LlmCostTracker
           ids = LlmCostTracker::CallTag.where(TIME_COLUMN => nil).limit(batch_size).pluck(:id)
           return 0 if ids.empty?
 
-          LlmCostTracker::CallTag.connection.update(copy_sql(ids))
+          LlmCostTracker::CallTag.lease_connection.update(copy_sql(ids))
         end
 
         def copy_sql(ids)
           tags = LlmCostTracker::CallTag.quoted_table_name
           calls = LlmCostTracker::Call.quoted_table_name
           list = ids.join(",")
-          return <<~SQL.squish unless Ledger::Schema::Adapter.postgresql?(LlmCostTracker::CallTag.connection)
+          return <<~SQL.squish unless Ledger::Schema::Adapter.postgresql?(LlmCostTracker::CallTag.lease_connection)
             UPDATE #{tags} t JOIN #{calls} c ON c.id = t.llm_cost_tracker_call_id
                SET t.#{COST_COLUMN} = c.#{COST_COLUMN}, t.#{TIME_COLUMN} = c.#{TIME_COLUMN}
              WHERE t.id IN (#{list})

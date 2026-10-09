@@ -19,7 +19,7 @@ module LlmCostTracker
       private_constant :TokenCharge
 
       def self.unknown_pricing_sql(total_cost: "total_cost", cost_status: "cost_status")
-        statuses = INCOMPLETE.map { |status| ActiveRecord::Base.connection.quote(status) }.join(", ")
+        statuses = INCOMPLETE.map { |status| ActiveRecord::Base.lease_connection.quote(status) }.join(", ")
         "#{total_cost} IS NULL OR #{cost_status} IN (#{statuses})"
       end
 

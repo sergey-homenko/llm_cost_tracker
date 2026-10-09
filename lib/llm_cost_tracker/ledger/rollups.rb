@@ -19,7 +19,7 @@ module LlmCostTracker
           rollup = LlmCostTracker::CallRollup
           return true if rollup.table_exists?
 
-          rollup.connection.schema_cache.clear_data_source_cache!(rollup.table_name)
+          rollup.with_connection { |connection| connection.schema_cache.clear_data_source_cache!(rollup.table_name) }
           return true if rollup.table_exists?
 
           warn_missing_table
@@ -32,7 +32,7 @@ module LlmCostTracker
           rows = rows_from_buckets(bucket_totals(Array(events))).sort_by { |row| row.values_at(*BUCKET).map(&:to_s) }
           return if rows.empty?
 
-          statements = Schema::Adapter.mysql?(LlmCostTracker::CallRollup.connection) ? rows.each_slice(1) : [rows]
+          statements = Schema::Adapter.mysql?(LlmCostTracker::CallRollup.lease_connection) ? rows.each_slice(1) : [rows]
           statements.each { |slice| LlmCostTracker::CallRollup.increment_all(slice) }
         end
 
@@ -46,13 +46,13 @@ module LlmCostTracker
         def increment_safely!(events)
           return unless LlmCostTracker.configuration.budgets.totals_source == :cache
 
-          Isolation.writing do
+          Isolation.leased do
             LlmCostTracker::Call.current_transaction.after_commit { increment_with_retries(events) }
           end
         end
 
         def increment_with_retries(events)
-          retryable = !LlmCostTracker::Call.connection.transaction_open?
+          retryable = LlmCostTracker::Call.with_connection { |connection| !connection.transaction_open? }
           attempt = 0
           begin
             attempt += 1

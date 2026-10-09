@@ -34,15 +34,15 @@ module LlmCostTracker
       end
 
       def increment_on_duplicate
-        return Arel.sql(mysql_increment_sql) if Ledger::Schema::Adapter.mysql?(connection)
-        return Arel.sql(postgres_increment_sql) if Ledger::Schema::Adapter.postgresql?(connection)
+        return Arel.sql(mysql_increment_sql) if Ledger::Schema::Adapter.mysql?(lease_connection)
+        return Arel.sql(postgres_increment_sql) if Ledger::Schema::Adapter.postgresql?(lease_connection)
 
-        Ledger::Schema::Adapter.ensure_supported!(connection)
+        Ledger::Schema::Adapter.ensure_supported!(lease_connection)
       end
 
       def postgres_increment_sql
-        total = connection.quote_column_name("total_cost")
-        updated = connection.quote_column_name("updated_at")
+        total = lease_connection.quote_column_name("total_cost")
+        updated = lease_connection.quote_column_name("updated_at")
         "#{total} = #{quoted_table_name}.#{total} + excluded.#{total}, #{updated} = excluded.#{updated}"
       end
 
@@ -51,7 +51,7 @@ module LlmCostTracker
       end
 
       def increment_unique_by
-        return unless connection.supports_insert_conflict_target?
+        return unless lease_connection.supports_insert_conflict_target?
 
         %i[period period_start currency provider]
       end

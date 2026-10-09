@@ -12,7 +12,7 @@ module LlmCostTracker
 
         def initialize(scope)
           @scope = scope
-          @connection = scope.connection
+          @connection = scope.lease_connection
         end
 
         def call

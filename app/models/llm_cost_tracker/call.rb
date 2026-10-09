@@ -69,8 +69,8 @@ module LlmCostTracker
 
       def cost_by_tag(key, limit: nil)
         cost = qualified(:total_cost)
-        label = Ledger::Tags::Breakdown.label_sql(connection)
-        raw_value = Ledger::Tags::Breakdown.raw_value_sql(connection)
+        label = Ledger::Tags::Breakdown.label_sql(lease_connection)
+        raw_value = Ledger::Tags::Breakdown.raw_value_sql(lease_connection)
         relation = Ledger::Tags::Breakdown.join_relation(self, key)
                                           .select("#{label} AS name", "COALESCE(SUM(#{cost}), 0) AS total_cost")
                                           .group(Arel.sql(label))
@@ -93,7 +93,9 @@ module LlmCostTracker
         column = column.to_s
         raise ArgumentError, "invalid period column: #{column.inspect}" unless column_names.include?(column)
 
-        bucket = Ledger::Schema::Adapter.period_bucket_sql(connection, period, qualified(column), time_zone: time_zone)
+        bucket = Ledger::Schema::Adapter.period_bucket_sql(
+          lease_connection, period, qualified(column), time_zone: time_zone
+        )
         group(Arel.sql(bucket))
       end
 
@@ -104,7 +106,7 @@ module LlmCostTracker
       end
 
       def qualified(column)
-        "#{quoted_table_name}.#{connection.quote_column_name(column)}"
+        "#{quoted_table_name}.#{lease_connection.quote_column_name(column)}"
       end
 
       private

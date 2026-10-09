@@ -46,7 +46,7 @@ module LlmCostTracker
         private
 
         def insert_calls_returning_ids(rows, insertable)
-          if LlmCostTracker::Call.connection.supports_insert_returning?
+          if LlmCostTracker::Call.lease_connection.supports_insert_returning?
             result = LlmCostTracker::Call.insert_all!(rows, record_timestamps: true, returning: %i[id event_id])
             result.rows.to_h { |id, event_id| [event_id, id] }
           else

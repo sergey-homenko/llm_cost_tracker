@@ -226,7 +226,7 @@ module LlmCostTracker
     end
 
     def active_record_available?
-      LlmCostTracker::Call.connection
+      LlmCostTracker::Call.lease_connection
       true
     rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::NoDatabaseError
       false

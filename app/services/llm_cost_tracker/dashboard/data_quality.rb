@@ -117,7 +117,7 @@ module LlmCostTracker
         def streaming_health_rows(scope, total_streaming:)
           return [] unless total_streaming.positive?
 
-          unknown_count = Arel.sql("SUM(CASE WHEN #{unknown_usage_sql(scope.connection)} THEN 1 ELSE 0 END)")
+          unknown_count = Arel.sql("SUM(CASE WHEN #{unknown_usage_sql(scope.lease_connection)} THEN 1 ELSE 0 END)")
           scope.unscope(:select, :order, :group)
                .where(stream: true)
                .group(:provider)

@@ -21,7 +21,7 @@ module LlmCostTracker
         end
 
         def current_schema_errors
-          Adapter.ensure_supported!(model.connection)
+          model.with_connection { |connection| Adapter.ensure_supported!(connection) }
           return ["#{model.table_name} table is missing"] unless table_exists?
 
           columns_hash = model.columns_hash
@@ -38,7 +38,7 @@ module LlmCostTracker
         def table_exists?
           return true if model.table_exists?
 
-          model.connection.schema_cache.clear_data_source_cache!(model.table_name)
+          model.with_connection { |connection| connection.schema_cache.clear_data_source_cache!(model.table_name) }
           model.table_exists?
         end
 

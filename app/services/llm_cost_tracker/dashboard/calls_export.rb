@@ -39,7 +39,7 @@ module LlmCostTracker
 
       def each_call(&)
         scope = relation.limit(limit)
-        scope = scope.optimizer_hints(MYSQL_HINT) if Ledger::Schema::Adapter.mysql?(scope.connection)
+        scope = scope.optimizer_hints(MYSQL_HINT) if Ledger::Schema::Adapter.mysql?(scope.lease_connection)
         scope.pluck(:id).each_slice(batch_size) do |ids|
           calls = LlmCostTracker::Call.where(id: ids).preload(:tag_records).index_by(&:id)
           calls.values_at(*ids).compact.each(&)

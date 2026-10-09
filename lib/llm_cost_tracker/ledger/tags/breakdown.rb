@@ -11,7 +11,7 @@ module LlmCostTracker
         class << self
           def join_relation(scope, key)
             validated_key = LlmCostTracker::Tags::Key.validate!(key)
-            connection = scope.connection
+            connection = scope.lease_connection
             join = "LEFT OUTER JOIN #{call_tag_table} ON " \
                    "#{call_tag_table}.llm_cost_tracker_call_id = #{scope.quoted_table_name}.id AND " \
                    "#{call_tag_table}.#{connection.quote_column_name('key')} = #{connection.quote(validated_key)}"
@@ -19,7 +19,7 @@ module LlmCostTracker
           end
 
           def value_arel
-            Arel.sql(raw_value_sql(LlmCostTracker::CallTag.connection))
+            Arel.sql(raw_value_sql(LlmCostTracker::CallTag.lease_connection))
           end
 
           def label_sql(connection)
