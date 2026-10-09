@@ -277,6 +277,20 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "records an attempt that fails between pause_turn segments as unknown, not as a copy of the segment before it" do
+      WebMock.stub_request(:post, messages_url).to_return(
+        reply(anthropic_message(id: "msg_p1", usage: { input_tokens: 20, output_tokens: 200 }, stop_reason: "pause_turn")),
+        reply({ error: { message: "boom" } }, status: 500),
+        reply(anthropic_message(id: "msg_p2", usage: { input_tokens: 30, output_tokens: 400 }))
+      )
+
+      capture_sdk_events do |events|
+        chat("claude-sonnet-4-6", :anthropic, context: no_retry_delay).ask("research")
+        expect(events.map { |event| event.values_at(:provider_response_id, :usage_source, :input_tokens) })
+          .to eq([["msg_p1", "sdk_response", 20], [nil, "unknown", 0], ["msg_p2", "sdk_response", 30]])
+      end
+    end
+
     it "prices a chat at the tier its provider options set, and its manual compaction, which does not send them, " \
        "at standard rates" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/responses").to_return(reply(response_object(
