@@ -39,8 +39,8 @@ module LlmCostTracker
 
       def patch_targets = []
 
-      def patch_target(constant_name, with:, optional: false, skip_when_methods_missing: false)
-        PatchTarget.new(constant_name:, patch: with, optional:, skip_when_methods_missing:)
+      def patch_target(constant_name, with:, optional: false, skip_when_methods_missing: false, since: nil)
+        PatchTarget.new(constant_name:, patch: with, optional:, skip_when_methods_missing:, since:)
       end
 
       def install
@@ -56,7 +56,7 @@ module LlmCostTracker
         return Check.new(:warn, name, untested_version_message) if untested_version?
         return Check.new(:warn, name, "#{name} integration is enabled but not installed") unless installed?
 
-        missing = patch_targets.reject(&:target_class).map(&:constant_name).uniq
+        missing = missing_targets
         return Check.new(:ok, name, "#{name} integration installed") if missing.empty?
 
         Check.new(
@@ -203,6 +203,8 @@ module LlmCostTracker
       end
 
       def target_problems = patch_targets.flat_map(&:problems)
+
+      def missing_targets = patch_targets.select { |target| target.missing?(gem_version) }.map(&:constant_name).uniq
 
       def installed? = patch_targets.reject(&:optional).all?(&:installed?)
     end
