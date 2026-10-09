@@ -665,6 +665,19 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       { id: "batch_req_x", custom_id: "u1", response: { status_code: 200, body: body } }.to_json
     end
 
+    it "records the successful results that follow an errored entry in the output file" do
+      failed = { id: "batch_req_b", custom_id: "u2", error: { code: "rate_limit", message: "slow down" }, response: nil }.to_json
+      success = batch_line(id: "chatcmpl_b2", object: "chat.completion", model: "gpt-4o", choices: [],
+                           usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 })
+      stub_batch(body: [failed, success, failed].join("\n"))
+
+      capture_sdk_events do |events|
+        client.batches.retrieve("batch_done")
+
+        expect(events.map { |event| event[:provider_response_id] }).to eq(["chatcmpl_b2"])
+      end
+    end
+
     it "captures per-request usage from a completed batch and skips errored entries" do
       stub_batch
 

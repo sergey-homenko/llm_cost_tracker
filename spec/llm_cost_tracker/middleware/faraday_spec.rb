@@ -860,6 +860,25 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(parsed.dig("stream_options", "include_usage")).to be true
   end
 
+  it "asks every built-in xAI and Mistral host's stream for its usage" do
+    bodies = {}
+    %w[api.x.ai us.api.x.ai api.mistral.ai api.eu.mistral.ai api.us.mistral.ai].each do |host|
+      connection = Faraday.new(url: "https://#{host}") do |f|
+        f.use :llm_cost_tracker
+        f.adapter(:test) do |stub|
+          stub.post("/v1/chat/completions") do |env|
+            bodies[host] = env.body
+            [200, { "Content-Type" => "text/event-stream" }, ""]
+          end
+        end
+      end
+      connection.post("/v1/chat/completions", { model: "m", stream: true }.to_json)
+    end
+
+    expect(bodies.transform_values { |body| JSON.parse(body).dig("stream_options", "include_usage") })
+      .to eq(bodies.keys.to_h { |host| [host, true] })
+  end
+
   it "preserves an explicit stream_options.include_usage = false set by the caller" do
     captured_body = nil
 
