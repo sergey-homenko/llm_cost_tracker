@@ -155,6 +155,18 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
     end
   end
 
+  describe "window boundaries" do
+    it "counts a call stamped at the start of the next day in that day's window only" do
+      configure_per_tag
+      spend(1.0, tags: { tenant_id: 42 }, tracked_at: Time.utc(2026, 7, 2))
+
+      today = described_class.spend("tenant_id", "42", :daily, time: Time.utc(2026, 7, 1, 12))
+      tomorrow = described_class.spend("tenant_id", "42", :daily, time: Time.utc(2026, 7, 2, 12))
+
+      expect([today, tomorrow]).to eq([0, 1])
+    end
+  end
+
   describe "per-rule behavior" do
     it "blocks the tag pre-send while the global policy only notifies" do
       configure_per_tag({ monthly: 5 }, behavior: :block_requests)

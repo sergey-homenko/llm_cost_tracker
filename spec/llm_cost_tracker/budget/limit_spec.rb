@@ -57,4 +57,10 @@ RSpec.describe LlmCostTracker::Budget::Limit do
     expect(error).to have_attributes(budget_type: :monthly, scope: nil)
     expect(notified).to eq([:monthly])
   end
+
+  it "counts a repriced call stamped at the window start toward that window" do
+    change = Struct.new(:tracked_at, :total_cost).new(Time.utc(2026, 7, 1), BigDecimal("2"))
+
+    expect(limit(:daily, 1).amount_in_window([change], Time.utc(2026, 7, 1, 12))).to eq(2)
+  end
 end
