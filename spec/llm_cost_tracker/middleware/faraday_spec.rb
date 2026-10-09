@@ -129,6 +129,29 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:tags]).to include(user_id: 42)
   end
 
+  it "passes requests whose Hash body is not valid JSON, recording an LLM call from its response" do
+    conn = Faraday.new do |f|
+      f.use :llm_cost_tracker
+      f.request :url_encoded
+      f.adapter :test do |stub|
+        stub.post("https://files.example.com/upload") { [200, {}, "ok"] }
+        stub.post("https://api.openai.com/v1/chat/completions") do
+          [200, { "Content-Type" => "application/json" }, openai_response_body]
+        end
+      end
+    end
+    events = []
+    ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) { |*, payload| events << payload }
+
+    log = capture_log do
+      expect(conn.post("https://files.example.com/upload", { image: "\xFF".b }).status).to eq(200)
+      expect(conn.post("https://api.openai.com/v1/chat/completions", { model: "gpt-4o", note: "\xFF".b }).status).to eq(200)
+    end
+
+    expect(events.map { |event| event[:model] }).to eq(["gpt-4o"])
+    expect(log.scan("Unable to read the request body").size).to eq(1)
+  end
+
   it "keeps the request, scoped tags and default tags when the middleware tags proc raises" do
     LlmCostTracker.configure { |config| config.tags.default = { env: "prod" } }
     conn = Faraday.new(url: "https://api.openai.com") do |f|

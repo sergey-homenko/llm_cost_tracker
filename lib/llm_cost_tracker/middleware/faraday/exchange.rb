@@ -17,9 +17,7 @@ module LlmCostTracker
           @tags = tags
           @url = env.url.to_s
           @parser = Parsers.find_for(@url)
-          @body = Body.read(env.body) || Body.multipart_model_json(env, @parser)
-          @request = @parser&.safe_json_parse(@body)
-          @streaming = @parser&.streaming_request?(@url, @request)
+          read_request if @parser
         end
 
         def call(app)
@@ -33,6 +31,15 @@ module LlmCostTracker
         end
 
         private
+
+        def read_request
+          @body = Body.read(@env.body) || Body.multipart_model_json(@env, @parser)
+          @request = @parser.safe_json_parse(@body)
+          @streaming = @parser.streaming_request?(@url, @request)
+        rescue StandardError => e
+          @request = {}
+          Logging.warn("Unable to read the request body: #{e.class}: #{e.message}")
+        end
 
         def prepare_stream
           @body = request_stream_usage || @body
