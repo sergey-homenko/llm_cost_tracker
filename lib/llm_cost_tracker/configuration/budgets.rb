@@ -12,11 +12,24 @@ module LlmCostTracker
       PER_TAG_WINDOWS = %i[daily weekly monthly total calls].freeze
       PER_TAG_OPTIONS = %i[behavior on_exceeded].freeze
 
-      attributes :monthly, :daily, :per_call, :on_exceeded
+      LIMITS = %i[monthly daily per_call].freeze
+
       enum_attribute :exceeded_behavior, allowed: EXCEEDED_BEHAVIORS, default: :notify
       enum_attribute :totals_source, allowed: TOTALS_SOURCES, default: :ledger
 
-      attr_reader :per_tag
+      attr_reader(*LIMITS, :on_exceeded, :per_tag)
+
+      LIMITS.each do |name|
+        define_method(:"#{name}=") do |value|
+          ensure_mutable!
+          instance_variable_set(:"@#{name}", value.nil? ? nil : validated_amount("budgets.#{name}", value, minimum: 0))
+        end
+      end
+
+      def on_exceeded=(value)
+        ensure_mutable!
+        @on_exceeded = validated_callback("budgets.on_exceeded", value)
+      end
 
       def initialize(owner)
         super
@@ -51,8 +64,21 @@ module LlmCostTracker
         {
           windows: validated_windows(key, normalized.except(*PER_TAG_OPTIONS)),
           behavior: validated_behavior(key, normalized[:behavior]),
-          on_exceeded: normalized[:on_exceeded]
+          on_exceeded: validated_callback("budgets.per_tag[#{key.inspect}][:on_exceeded]", normalized[:on_exceeded])
         }
+      end
+
+      def validated_amount(name, value, minimum: nil)
+        number = Float(value, exception: false)
+        return BigDecimal(value.to_s) if number && (minimum ? number >= minimum : number.positive?)
+
+        raise Error, "#{name} must be a #{minimum ? 'non-negative' : 'positive'} number, got #{value.inspect}"
+      end
+
+      def validated_callback(name, value)
+        return value if value.nil? || value.respond_to?(:call)
+
+        raise Error, "#{name} must respond to call, got #{value.inspect}"
       end
 
       def validated_windows(key, windows)
@@ -83,12 +109,7 @@ module LlmCostTracker
       def validated_limit(key, window, limit)
         return validated_calls(key, limit) if window == :calls
 
-        numeric = Float(limit, exception: false)
-        return BigDecimal(limit.to_s) if numeric&.positive?
-
-        raise Error,
-              "budgets.per_tag[#{key.inspect}][#{window.inspect}] must be a positive number, " \
-              "got #{limit.inspect}"
+        validated_amount("budgets.per_tag[#{key.inspect}][#{window.inspect}]", limit)
       end
 
       def validated_calls(key, limit)

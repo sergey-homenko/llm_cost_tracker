@@ -94,6 +94,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A stream event spanning many network reads, such as a streamed image through Faraday, is parsed in linear instead of quadratic time.
 - `close` on an official openai or anthropic SDK stream closes its HTTP response and records the call, instead of leaving the openai connection open and unrecorded.
 - `track_stream` records the call when its block leaves with `return`, `break` or `throw`; it was not recorded.
+- `budgets.monthly`, `daily` and `per_call` given as a numeric string, such as an `ENV` value, are used as numbers instead of failing every call or never firing; a non-numeric or negative value, or an `on_exceeded` that cannot be called, raises at `configure`.
 
 ## [0.14.2] - 2026-09-28
 
