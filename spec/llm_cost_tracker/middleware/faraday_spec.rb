@@ -1246,6 +1246,18 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       expect(sent).to include(%(name="model"\r\n\r\nwhisper-1\r\n))
     end
 
+    it "ignores a model part forged inside an uploaded file that comes before the model field" do
+      audio = "RIFF#{'a' * 100}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\nfree-model\r\n#{'b' * 10}".b
+      WebMock.stub_request(:post, "https://api.openai.com/v1/audio/transcriptions")
+             .to_return(status: 200, body: { text: "hi", usage: { type: "duration", seconds: 9 } }.to_json,
+                        headers: { "Content-Type" => "application/json" })
+
+      event = ruby_openai_post("/audio/transcriptions", { file: upload(audio, "a.wav"), model: "whisper-1" },
+                               multipart: true)
+
+      expect(event).to include(model: "whisper-1", cost_status: "complete")
+    end
+
     it "reads the model of a multipart image edit" do
       WebMock.stub_request(:post, "https://api.openai.com/v1/images/edits").to_return(
         status: 200,
