@@ -469,6 +469,19 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker::Ingestion::InboxEntry.delete_all
   end
 
+  it "notices rows another process drains while flush! runs under the query cache" do
+    LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 })
+    LlmCostTracker::Ingestion::InboxEntry.update_all(locked_at: Time.now.utc, locked_by: "worker-a")
+    drainer = Thread.new do
+      sleep 0.3
+      ActiveRecord::Base.connection_pool.with_connection { LlmCostTracker::Ingestion::InboxEntry.delete_all }
+    end
+
+    expect(ActiveRecord::Base.cache { LlmCostTracker::Ingestion::Worker.flush!(timeout: 3) }).to be true
+  ensure
+    drainer&.join
+  end
+
   it "returns false when flush reaches the timeout during an ingest attempt" do
     ingestor = LlmCostTracker::Ingestion::Worker
     LlmCostTracker.track(
