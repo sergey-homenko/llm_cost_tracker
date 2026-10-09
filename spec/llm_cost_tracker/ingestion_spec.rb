@@ -374,7 +374,7 @@ RSpec.describe "ActiveRecord async inbox" do
     expect(bad_row.attempts).to eq(LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE)
     expect(bad_row.last_error).to include("JSON")
     expect(LlmCostTracker::Call.find_by!(event_id: event.event_id)).to be_present
-    expect(LlmCostTracker::Ingestion::Worker.flush!(timeout: 0.01)).to be true
+    expect(LlmCostTracker::Ingestion::Worker.flush!(timeout: 0.01)).to be false
     expect(LlmCostTracker::Ingestion::InboxEntry.where(event_id: "bad-event")).to exist
 
     LlmCostTracker::Ingestion::InboxEntry.delete_all
@@ -455,6 +455,7 @@ RSpec.describe "ActiveRecord async inbox" do
   end
 
   it "times out flush when every row is leased by another worker" do
+    allow(LlmCostTracker::Logging).to receive(:warn)
     LlmCostTracker.track(
       provider: :openai,
       model: "gpt-4o",
@@ -463,6 +464,7 @@ RSpec.describe "ActiveRecord async inbox" do
     LlmCostTracker::Ingestion::InboxEntry.update_all(locked_at: Time.now.utc, locked_by: "worker-a")
 
     expect(LlmCostTracker::Ingestion::Worker.flush!(timeout: 0.01)).to be false
+    expect(LlmCostTracker::Logging).to have_received(:warn).with(include("timed out with 1 inbox row(s) still pending"))
 
     LlmCostTracker::Ingestion::InboxEntry.delete_all
   end

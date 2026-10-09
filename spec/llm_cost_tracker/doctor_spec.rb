@@ -189,6 +189,27 @@ RSpec.describe LlmCostTracker::Doctor do
 
       expect(check).to have_attributes(status: :warn)
       expect(check.message).to include("unused async ingestion tables")
+      expect(check.message).not_to include("never reached the ledger")
+    end
+
+    it "counts inbox rows that never reached the ledger when inline mode is set" do
+      LlmCostTracker::Ingestion::InboxEntry.create!(event_id: "left", total_cost: 1.0, tracked_at: Time.now.utc, payload: "{}")
+      LlmCostTracker.configure { |config| config.ingestion.mode = :inline }
+
+      check = described_class.call.find { |item| item.name == "inline ingestion" }
+
+      expect(check).to have_attributes(status: :warn, message: include("1 inbox row(s) never reached the ledger"))
+    end
+
+    it "warns when quarantined inbox rows keep their spend out of the ledger" do
+      LlmCostTracker::Ingestion::InboxEntry.create!(
+        event_id: "bad-event", total_cost: 1.0, tracked_at: Time.now.utc, payload: "{",
+        attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
+      )
+
+      check = described_class.call.find { |item| item.name == "async ingestion" }
+
+      expect(check).to have_attributes(status: :warn, message: include("1 inbox row(s) are quarantined"))
     end
 
     it "passes inline mode when the async tables have been dropped" do

@@ -45,7 +45,7 @@ LlmCostTracker::Ingestion::Worker.flush!(timeout: 5)
 LlmCostTracker::Ingestion::Worker.shutdown!(timeout: 5, drain: true)
 ```
 
-The default process `at_exit` hook stops the local ingestor without forcing every exiting process to drain the shared inbox. Rows stay in the database until another process's ingestor claims them. A process starts its ingestor on its first async `Tracker.record`, not at boot, so after a restart, or when only short-lived processes record, rows wait for the next tracked call. Use `flush!` or `shutdown!(drain: true)` when a job or release step must wait for the ledger to catch up.
+The default process `at_exit` hook stops the local ingestor without forcing every exiting process to drain the shared inbox. Rows stay in the database until another process's ingestor claims them. A process starts its ingestor on its first async `Tracker.record`, not at boot, so after a restart, or when only short-lived processes record, rows wait for the next tracked call. Use `flush!` or `shutdown!(drain: true)` when a job or release step must wait for the ledger to catch up. Both return `false` when the wait times out, which is logged, or quarantined rows remain.
 
 `shutdown!` is one-way for the calling process: subsequent `Tracker.record` calls still enqueue to the inbox (so events aren't lost), but the local worker thread won't respawn — another process's ingestor picks them up once that process has recorded a call. Don't call `shutdown!` mid-process unless you intend that contract.
 
@@ -62,7 +62,7 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion.mode = :inline`) surface as `:warn`. Runtime data conditions (quarantined inbox rows) log to `Rails.logger` from the ingestion worker at the moment they occur — nothing runs `doctor` while the app serves traffic, so those signals must reach the host's own logger.
+`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion.mode = :inline`) surface as `:warn`, as do quarantined inbox rows and, in inline mode, inbox rows that never reached the ledger. The ingestion worker also logs each row to `Rails.logger` when it is quarantined — nothing runs `doctor` while the app serves traffic, so that signal must reach the host's own logger.
 
 `verify_capture` records a synthetic event and verifies both notifications and ActiveRecord persistence.
 
