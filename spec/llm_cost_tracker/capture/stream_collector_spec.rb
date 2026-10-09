@@ -166,6 +166,19 @@ RSpec.describe LlmCostTracker do
       expect(result).to be_nil
       expect(collected).to be_empty
     end
+
+    it "runs a track_stream block without enforcing budgets when tracking is disabled" do
+      LlmCostTracker.configure do |config|
+        config.enabled = false
+        config.budgets.monthly = 1.0
+      end
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: BigDecimal("2"))
+      ran = false
+
+      expect { described_class.track_stream(provider: "openai", model: "gpt-4o", enforce_budget: true) { ran = true } }
+        .not_to raise_error
+      expect(ran).to be(true)
+    end
   end
 
   describe ".track_stream" do

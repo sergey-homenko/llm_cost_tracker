@@ -131,6 +131,25 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
   end
 
   describe "responses.connect" do
+    it "records a response the connection reads without having sent its create, and a failed one with usage" do
+      response = { id: "resp_x", object: "response", created_at: 1, status: "in_progress", model: "gpt-4o", output: [],
+                   usage: nil, tools: [] }
+      usage = { input_tokens: 10, output_tokens: 5, total_tokens: 15 }
+      failed = response.merge(id: "resp_f", status: "failed", usage: usage)
+      transport, = responses_websocket(
+        [{ type: "response.created", sequence_number: 0, response: response },
+         { type: "response.completed", sequence_number: 1, response: response.merge(status: "completed", usage: usage) },
+         { type: "response.created", sequence_number: 2, response: failed.merge(usage: nil, status: "in_progress") },
+         { type: "response.failed", sequence_number: 3, response: failed }]
+      )
+
+      capture_sdk_events do |events|
+        client.responses.connect(transport: transport) { |connection| connection.each { nil } }
+
+        expect(events.map { |event| event[:provider_response_id] }).to eq(%w[resp_x resp_f])
+      end
+    end
+
     it "records creates sent back to back on a lane at the tags each was sent under, apart from other lanes" do
       turn = lambda do |id, lane = nil|
         response = { id: id, object: "response", created_at: 1, status: "in_progress", model: "gpt-4o", output: [],
