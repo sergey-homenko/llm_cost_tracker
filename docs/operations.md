@@ -80,7 +80,7 @@ Optional batch size:
 DAYS=90 BATCH_SIZE=500 bin/rails llm_cost_tracker:prune
 ```
 
-Pruning deletes old `llm_cost_tracker_calls`, then makes a second pass over `llm_cost_tracker_ingestion_inbox_entries` with the same cutoff, so a stale inbox row cannot drain into a period you already pruned. Any pending row it deletes never reached the ledger and is spend you lose, so the task logs their count and cost — drain the inbox before pruning. Quarantined rows past the cutoff are deleted without that warning. Dependent line items and tags are removed by the database via `on_delete: :cascade`. When `config.budgets.totals_source = :cache`, affected daily/monthly call rollups are decremented in the same transaction.
+Pruning deletes old `llm_cost_tracker_calls`, then makes a second pass over `llm_cost_tracker_ingestion_inbox_entries` with the same cutoff, so a stale inbox row cannot drain into a period you already pruned. Any pending row it deletes never reached the ledger and is spend you lose, so the task logs their count and cost — drain the inbox before pruning. Quarantined rows past the cutoff are deleted without that warning. Dependent line items and tags are removed by the database via `on_delete: :cascade`. When `config.budgets.totals_source = :cache`, affected daily/monthly call rollups are decremented in the same transaction. Budgets read the remaining calls, so a pruned call stops counting toward every window it fell in: keep `DAYS` at 31 or more while a monthly budget is set, and longer than a run lasts while a per-tag `total` limit is.
 
 ## Data Shape
 
