@@ -8,7 +8,7 @@ module LlmCostTracker
       HEAD_EVENTS = 16
       TAIL_EVENTS = 32
       HEAVY_STRING_BYTES = 8 * 1024
-      IGNORED_PAYLOAD_KEYS = %w[b64_json partial_image_b64 snapshot logprobs].freeze
+      IGNORED_PAYLOAD_KEYS = %w[b64_json partial_image_b64 snapshot logprobs embedding].freeze
 
       def initialize(notable: nil, trim: nil)
         @notable = notable

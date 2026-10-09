@@ -92,6 +92,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Claude calls on Vertex AI under a versioned model id, such as `claude-sonnet-4-5@20250929`, are priced instead of recorded with unknown cost.
 - Calls made under a read-only database role, such as a GET request with Rails' automatic role switching, are recorded through the writing role instead of lost, and the async inbox no longer binds to a replica; budget reads use the writing role too.
 - A stream event spanning many network reads, such as a streamed image through Faraday, is parsed in linear instead of quadratic time.
+- Recording an openai SDK response no longer walks its embedding vectors, which added up to 60% to a large `embeddings.create` call.
 - `close` on an official openai or anthropic SDK stream closes its HTTP response and records the call, instead of leaving the openai connection open and unrecorded.
 - `track_stream` records the call when its block leaves with `return`, `break` or `throw`; it was not recorded.
 - `doctor` reports an error when `budgets.per_tag` is set but `llm_cost_tracker_call_tags` lacks the cost columns, which leaves every per-tag budget unenforced.

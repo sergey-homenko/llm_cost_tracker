@@ -33,7 +33,7 @@ module LlmCostTracker
         end
 
         def container_for(value)
-          value.try(:deep_to_h) || value.try(:to_h)
+          value.try(:to_h)
         rescue StandardError
           nil
         end

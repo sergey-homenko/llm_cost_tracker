@@ -362,6 +362,20 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         )
       end
     end
+
+    it "reads the SDK response without walking its embedding vectors" do
+      body = JSON.parse(sdk_fixture(:openai, "embeddings_create.json"))
+                 .merge("data" => [{ "object" => "embedding", "index" => 0, "embedding" => [0.1, 0.2] }])
+      WebMock.stub_request(:post, "https://api.openai.com/v1/embeddings")
+             .to_return(body: JSON.generate(body), headers: { "Content-Type" => "application/json" })
+      response = client.embeddings.create(model: "text-embedding-3-large", input: "hi")
+      allow(response).to receive(:deep_to_h).and_call_original
+
+      normalized = LlmCostTracker::Capture::SdkPayload.normalize(response)
+
+      expect(normalized["data"]).to eq([{ "object" => "embedding", "index" => 0 }])
+      expect(response).not_to have_received(:deep_to_h)
+    end
   end
 
   describe "images.generate" do
