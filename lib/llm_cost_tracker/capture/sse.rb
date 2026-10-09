@@ -64,11 +64,12 @@ module LlmCostTracker
 
         def consume_lines
           start = 0
-          while (newline = @pending.index("\n", start))
+          while (newline = @pending.index("\n", [start, @scan_pos].max))
             consume_line(@pending.byteslice(start, newline - start))
             start = newline + 1
           end
-          @pending = @pending.byteslice(start..)
+          @pending.slice!(0, start) if start.positive?
+          @scan_pos = @pending.bytesize
         end
 
         def consume_line(raw)
@@ -140,9 +141,10 @@ module LlmCostTracker
         end
 
         def trim_array_buffer(pos)
-          keep_from = @object_start || [pos, @pending.bytesize].min
-          @pending = @pending.byteslice(keep_from..)
-          @scan_pos = pos - keep_from
+          size = @pending.bytesize
+          keep_from = @object_start || [pos, size].min
+          @pending.slice!(0, keep_from) if keep_from.positive?
+          @scan_pos = [pos, size].max - keep_from
           @object_start &&= 0
         end
 

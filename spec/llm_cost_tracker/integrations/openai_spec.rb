@@ -571,6 +571,25 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
   end
 
+  describe "budget pre-check" do
+    it "blocks a create and a stream before they are sent once prior spend reaches a limit" do
+      LlmCostTrackerReset.call
+      LlmCostTracker.configure do |config|
+        config.instrument(:openai)
+        config.budgets.monthly = 1.0
+        config.budgets.exceeded_behavior = :block_requests
+      end
+      allow(LlmCostTracker::Ledger::Period::Totals).to receive(:call).and_return(month: 1.0)
+      sent = WebMock.stub_request(:post, "https://api.openai.com/v1/responses")
+
+      expect { client.responses.create(model: "gpt-4o", input: "hi") }
+        .to raise_error(LlmCostTracker::BudgetExceededError)
+      expect { client.responses.stream_raw(model: "gpt-4o", input: "hi") }
+        .to raise_error(LlmCostTracker::BudgetExceededError)
+      expect(sent).not_to have_been_requested
+    end
+  end
+
   describe "batches.create" do
     it "is blocked before it is sent once prior spend reaches a limit under :block_requests" do
       LlmCostTrackerReset.call

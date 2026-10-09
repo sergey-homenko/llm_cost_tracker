@@ -179,6 +179,23 @@ RSpec.describe LlmCostTracker::Ledger::Isolation do
     expect(monthly_rollup_total).to eq(BigDecimal("0.0025"))
   end
 
+  it "records calls made while the host prevents writes or reads from a replica" do
+    LlmCostTracker.configuration.budgets.totals_source = :cache
+    primary = LlmCostTrackerDatabase.config
+    ActiveRecord::Base.connects_to(database: { writing: primary, reading: primary.merge(replica: true) })
+
+    ActiveRecord::Base.while_preventing_writes { LlmCostTracker::Ledger::Store.insert(build_event(event_id: "guarded")) }
+    ActiveRecord::Base.connected_to(role: :reading) do
+      LlmCostTracker::Ledger::Store.insert(build_event(event_id: "replica"))
+    end
+
+    expect(LlmCostTracker::Call.pluck(:event_id)).to contain_exactly("guarded", "replica")
+    expect(monthly_rollup_total).to eq(BigDecimal("0.005"))
+  ensure
+    ActiveRecord::Base.connection_handler.remove_connection_pool("ActiveRecord::Base", role: :reading)
+    ActiveRecord::Base.establish_connection(primary)
+  end
+
   describe "on a database that rolls back the whole transaction on deadlock, like MySQL" do
     before do
       skip "simulates InnoDB deadlock semantics with PostgreSQL" unless postgresql?

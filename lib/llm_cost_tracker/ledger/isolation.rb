@@ -7,6 +7,16 @@ module LlmCostTracker
     module Isolation
       class << self
         def guard(model = LlmCostTracker::Call, &)
+          writing { isolate(model, &) }
+        end
+
+        def writing(&)
+          ActiveRecord::Base.connected_to(role: ActiveRecord.writing_role, prevent_writes: false, &)
+        end
+
+        private
+
+        def isolate(model, &)
           connection = model.connection
           nested = connection.transaction_open?
           return yield unless nested

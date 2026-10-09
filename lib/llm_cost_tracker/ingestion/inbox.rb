@@ -82,7 +82,7 @@ module LlmCostTracker
         end
 
         def insert_row(row)
-          Pool.with_connection { |connection| execute_insert(connection, row) }
+          Ledger::Isolation.writing { Pool.with_connection { |connection| execute_insert(connection, row) } }
         rescue ActiveRecord::ConnectionTimeoutError => e
           raise LlmCostTracker::Error,
                 "ledger inbox could not checkout a database connection: #{e.message}"
