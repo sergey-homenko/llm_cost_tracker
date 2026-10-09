@@ -312,6 +312,29 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
     end
   end
 
+  describe "token counts of an attempt without a response body" do
+    def event_for(operation, model:, **tokens)
+      usage = { operation: operation, provider: "gemini", model: model, status: :succeeded,
+                tokens: RubyLLM::Tokens.new(**tokens) }
+      described_class::Attempt::TokenCounts.new(usage, { streaming: true }, raw: nil, request: {}).event(result: nil)
+    end
+
+    it "splits a transcription's input tokens into audio tokens on an audio-priced model, without counting them twice" do
+      expect(event_for(:transcription, model: "gemini-2.5-flash", input: 1000, output: 50).token_usage)
+        .to have_attributes(input_tokens: 0, audio_input_tokens: 1000, output_tokens: 50)
+    end
+
+    it "keeps a chat's input tokens as text on an audio-priced model" do
+      expect(event_for(:chat, model: "gemini-2.5-flash", input: 1000, output: 50).token_usage)
+        .to have_attributes(input_tokens: 1000, audio_input_tokens: 0, output_tokens: 50)
+    end
+
+    it "splits an image call's output tokens into image tokens without counting them twice" do
+      expect(event_for(:image, model: "gemini-2.5-flash-image", input: 10, output: 1290).token_usage)
+        .to have_attributes(output_tokens: 0, image_output_tokens: 1290)
+    end
+  end
+
   describe "request-derived pricing mode on attempts other than the last successful one" do
     it "reads the provider options when the raw request body is not JSON" do
       raw = Faraday::Response.new(Faraday::Env.from(request_body: "--multipart-boundary"))
