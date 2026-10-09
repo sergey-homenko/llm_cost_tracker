@@ -427,6 +427,17 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::Parser do
   describe "#parse_stream" do
     let(:request_body) { { model: "claude-sonnet-4-6", stream: true }.to_json }
 
+    it "returns nil on non-200 responses" do
+      result = parser.parse_stream(
+        request_url: anthropic_messages_url,
+        request_body: request_body,
+        response_status: 500,
+        events: []
+      )
+
+      expect(result).to be_nil
+    end
+
     it "carries thinking tokens from the final message_delta into hidden output" do
       events = [
         { event: "message_start", data: {

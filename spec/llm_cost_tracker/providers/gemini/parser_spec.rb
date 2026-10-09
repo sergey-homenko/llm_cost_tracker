@@ -386,6 +386,10 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
   describe "#parse_stream" do
     let(:url) { stream_generate_content_url }
 
+    it "returns nil on non-200 responses" do
+      expect(parser.parse_stream(request_url: url, response_status: 500, events: [])).to be_nil
+    end
+
     it "takes the last usageMetadata block across streamed chunks" do
       events = [
         { event: nil, data: { "usageMetadata" => { "promptTokenCount" => 80, "candidatesTokenCount" => 5 } } },
