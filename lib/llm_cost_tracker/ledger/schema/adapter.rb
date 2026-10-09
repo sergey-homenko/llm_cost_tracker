@@ -30,6 +30,15 @@ module LlmCostTracker
             raise Error, "Unsupported database adapter: #{adapter_name(value)}. Use PostgreSQL or MySQL."
           end
 
+          def drop_invalid_index(connection, name)
+            return unless postgresql?(connection)
+
+            invalid = connection.select_value(
+              "SELECT 1 FROM pg_index WHERE indexrelid = to_regclass(#{connection.quote(name.to_s)}) AND NOT indisvalid"
+            )
+            connection.execute("DROP INDEX CONCURRENTLY IF EXISTS #{connection.quote_table_name(name)}") if invalid
+          end
+
           PG_PERIOD_FORMATS = { day: "YYYY-MM-DD", month: "YYYY-MM" }.freeze
           MYSQL_PERIOD_FORMATS = { day: "%Y-%m-%d", month: "%Y-%m" }.freeze
           private_constant :PG_PERIOD_FORMATS, :MYSQL_PERIOD_FORMATS

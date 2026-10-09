@@ -8,6 +8,7 @@ class UpgradeLlmCostTrackerCallTagsKeyValueIndex < ActiveRecord::Migration[<%= A
 
   def up
     if postgresql?
+      LlmCostTracker::Ledger::Schema::Adapter.drop_invalid_index(connection, connection.index_name(TABLE, INDEX_COLUMNS))
       add_index TABLE, INDEX_COLUMNS, algorithm: :concurrently, if_not_exists: true
     elsif mysql?
       add_index TABLE, INDEX_COLUMNS, length: { value: 191 }, if_not_exists: true

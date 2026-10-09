@@ -27,6 +27,7 @@ class UpgradeLlmCostTrackerCallRollupsProvider < ActiveRecord::Migration[<%= Act
 
   def add_unique_index(columns)
     if postgresql?
+      LlmCostTracker::Ledger::Schema::Adapter.drop_invalid_index(connection, connection.index_name(TABLE, columns))
       add_index TABLE, columns, unique: true, algorithm: :concurrently, if_not_exists: true
     else
       add_index TABLE, columns, unique: true, if_not_exists: true

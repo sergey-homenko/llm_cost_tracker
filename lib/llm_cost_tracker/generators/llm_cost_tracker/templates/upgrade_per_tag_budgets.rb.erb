@@ -10,6 +10,7 @@ class UpgradeLlmCostTrackerPerTagBudgets < ActiveRecord::Migration[<%= ActiveRec
   def up
     add_column TABLE, :total_cost, :decimal, precision: 20, scale: 8 unless column_exists?(TABLE, :total_cost)
     add_column TABLE, :tracked_at, :datetime unless column_exists?(TABLE, :tracked_at)
+    LlmCostTracker::Ledger::Schema::Adapter.drop_invalid_index(connection, connection.index_name(TABLE, INDEX))
     add_index TABLE, INDEX, **add_index_options
     remove_index TABLE, column: REPLACED_INDEX, **remove_index_options
   end
