@@ -47,7 +47,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Bundled prices drop the models Mistral lists as retired, with their aliases such as `magistral-medium-latest`, and any model its provider has stopped listing for 90 days.
 - Vertex AI calls through RubyLLM are priced at the tier their `usageMetadata.trafficType` reports, and Bedrock Converse calls at their `serviceTier`, instead of at standard rates; Provisioned Throughput, Bedrock `reserved` and tiers no bundled price lists become `unknown`, so they no longer count toward money budgets but still count toward `calls` limits, and `provisioned_throughput_*` or `reserved_*` rates in `pricing.overrides` price them.
 - Calls through the official OpenAI SDK's Bedrock provider (`OpenAI::Providers.bedrock`) are recorded as `bedrock` instead of `openai`.
-- `with_tags` tags reach fibers started inside its block, and on RubyLLM 2.1 the tool threads RubyLLM starts, until the block ends; other threads, such as a thread pool's, get none.
+- `with_tags` tags reach fibers started inside its block, and on RubyLLM 2.1 the tool threads RubyLLM starts, until the block ends; an `ActionController::Live` action's thread keeps them for the whole action, and other threads, such as a thread pool's, get none.
 
 ### Fixed
 

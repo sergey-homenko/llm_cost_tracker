@@ -482,6 +482,24 @@ RSpec.describe "ActiveRecord async inbox" do
     drainer&.join
   end
 
+  it "notices rows another process quarantines between two flush! calls under the query cache" do
+    ActiveRecord::Base.cache do
+      expect(LlmCostTracker::Ingestion::Worker.flush!(timeout: 1)).to be true
+      Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          LlmCostTracker::Ingestion::InboxEntry.create!(
+            event_id: "quarantined-elsewhere", total_cost: 1.0, tracked_at: Time.now.utc, payload: "{",
+            attempts: LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
+          )
+        end
+      end.join
+
+      expect(LlmCostTracker::Ingestion::Worker.flush!(timeout: 1)).to be false
+    end
+  ensure
+    LlmCostTracker::Ingestion::InboxEntry.delete_all
+  end
+
   it "returns false when flush reaches the timeout during an ingest attempt" do
     ingestor = LlmCostTracker::Ingestion::Worker
     LlmCostTracker.track(

@@ -19,7 +19,10 @@ module LlmCostTracker
             patch_target("Anthropic::Resources::Beta::Messages", with: MessagesPatch, optional: true),
             patch_target("Anthropic::Resources::Messages::Batches", with: BatchesPatch, optional: true),
             patch_target("Anthropic::Resources::Beta::Messages::Batches", with: BatchesPatch, optional: true),
-            patch_target("Anthropic::BetaRefusalFallbackMiddleware", with: FallbackMiddlewarePatch, optional: true)
+            patch_target("Anthropic::BetaRefusalFallbackMiddleware",
+                         with: FallbackMiddlewarePatch,
+                         optional: true,
+                         since: "1.54.0")
           ]
         end
 

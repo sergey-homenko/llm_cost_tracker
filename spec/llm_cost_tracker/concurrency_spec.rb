@@ -263,6 +263,30 @@ RSpec.describe "concurrency", :aggregate_failures do
       queue << true
       expect(threads.map(&:value)).to eq([{}, {}])
     end
+
+    it "keeps scoped tags in an ActionController::Live action's thread and its fibers after the request's block ends" do
+      ended = Queue.new
+      stub_const("LiveTagsController", Class.new(ActionController::Base) do
+        include ActionController::Live
+
+        define_method(:index) do
+          response.stream.write("committed ")
+          ended.pop
+          seen = LlmCostTracker.with_tags(step: "stream") do
+            [LlmCostTracker::Tags::Context.tags, Fiber.new { LlmCostTracker::Tags::Context.tags }.resume]
+          end
+          response.stream.write(seen.to_json)
+        ensure
+          response.stream.close
+        end
+      end)
+      app = lambda do |env|
+        LlmCostTracker.with_tags(tenant: "acme") { LiveTagsController.action(:index).call(env) }.tap { ended << true }
+      end
+
+      expect(Rack::MockRequest.new(app).get("/").body)
+        .to eq('committed [{"tenant":"acme","step":"stream"},{"tenant":"acme","step":"stream"}]')
+    end
   end
 
   describe "opt-in budget preflight" do

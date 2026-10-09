@@ -27,13 +27,7 @@ module LlmCostTracker
         end
 
         def increment!(events)
-          return unless cache_active?
-
-          rows = rows_from_buckets(bucket_totals(Array(events))).sort_by { |row| row.values_at(*BUCKET).map(&:to_s) }
-          return if rows.empty?
-
-          statements = Schema::Adapter.mysql?(LlmCostTracker::CallRollup.lease_connection) ? rows.each_slice(1) : [rows]
-          statements.each { |slice| LlmCostTracker::CallRollup.increment_all(slice) }
+          write(rollup_rows(events)) if cache_active?
         end
 
         ROLLUP_INCREMENT_ATTEMPTS = 3
@@ -53,10 +47,11 @@ module LlmCostTracker
 
         def increment_with_retries(events)
           retryable = LlmCostTracker::Call.with_connection { |connection| !connection.transaction_open? }
+          rows = nil
           attempt = 0
           begin
             attempt += 1
-            Isolation.guard { increment!(events) }
+            Isolation.guard { write(rows ||= cache_active? ? rollup_rows(events) : []) }
           rescue LlmCostTracker::Error
             raise
           rescue StandardError => e
@@ -70,6 +65,20 @@ module LlmCostTracker
               "#{e.class}: #{e.message}. Monthly budget totals under-count these calls until you run " \
               "bin/rails llm_cost_tracker:rebuild_rollups."
             )
+          end
+        end
+
+        def rollup_rows(events)
+          rows_from_buckets(bucket_totals(Array(events))).sort_by { |row| row.values_at(*BUCKET).map(&:to_s) }
+        end
+
+        def write(rows)
+          return if rows.empty?
+
+          size = Schema::Adapter.mysql?(LlmCostTracker::CallRollup.lease_connection) ? 1 : rows.size
+          until rows.empty?
+            LlmCostTracker::CallRollup.increment_all(rows.first(size))
+            rows.shift(size)
           end
         end
 

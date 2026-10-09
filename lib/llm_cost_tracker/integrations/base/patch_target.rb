@@ -5,10 +5,12 @@ require "active_support/core_ext/string/inflections"
 module LlmCostTracker
   module Integrations
     module Base
-      PatchTarget = Data.define(:constant_name, :patch, :optional, :skip_when_methods_missing) do
+      PatchTarget = Data.define(:constant_name, :patch, :optional, :skip_when_methods_missing, :since) do
         def target_class = constant_name.to_s.safe_constantize
 
         def installed? = target_class&.ancestors&.include?(patch)
+
+        def missing?(version) = target_class.nil? && (since.nil? || version.nil? || version >= Gem::Version.new(since))
 
         def install
           target = target_class

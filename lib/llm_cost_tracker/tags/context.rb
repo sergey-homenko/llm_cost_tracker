@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "active_support/isolated_execution_state"
+
 module LlmCostTracker
   module Tags
     module Context
@@ -9,11 +11,14 @@ module LlmCostTracker
         def with(tags)
           stack = Fiber[KEY] || []
           scope = [Thread.current, Sanitizer.call((tags || {}).to_h)]
+          shared = scope.dup
           Fiber[KEY] = stack + [scope]
+          ActiveSupport::IsolatedExecutionState[KEY] = shared_scopes + [shared]
           yield
         ensure
           scope&.clear
           Fiber[KEY] = stack
+          ActiveSupport::IsolatedExecutionState[KEY] = shared_scopes.reject { |entry| entry.equal?(shared) } if shared
         end
 
         def tags
@@ -23,9 +28,10 @@ module LlmCostTracker
         end
 
         def scoped
-          Array(Fiber[KEY]).each_with_object({}) do |(owner, tags), merged|
-            merged.merge!(tags) if owner.equal?(Thread.current)
-          end
+          current = Thread.current
+          shared = shared_scopes.reject { |owner, _| owner.equal?(current) }
+          own = Array(Fiber[KEY]).select { |owner, _| owner.equal?(current) }
+          (shared + own).each_with_object({}) { |(_, tags), merged| merged.merge!(tags) }
         end
 
         def call_default_tags(proc_or_lambda)
@@ -34,6 +40,10 @@ module LlmCostTracker
           Logging.warn("LlmCostTracker tags.default proc raised: #{e.class}: #{e.message}; using empty default tags")
           {}
         end
+
+        private
+
+        def shared_scopes = Array(ActiveSupport::IsolatedExecutionState[KEY])
       end
     end
   end

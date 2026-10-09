@@ -44,7 +44,7 @@ module LlmCostTracker
             Logging.warn("Ingestion::Worker.flush! timed out with #{Ingestion::InboxEntry.pending.count} " \
                          "inbox row(s) still pending")
           end
-          drained && Ingestion::InboxEntry.quarantined.none?
+          drained && Ingestion::InboxEntry.uncached { Ingestion::InboxEntry.quarantined.none? }
         end
 
         def shutdown!(timeout: nil, drain: true)

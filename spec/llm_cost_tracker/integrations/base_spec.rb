@@ -132,6 +132,21 @@ RSpec.describe LlmCostTracker::Integrations::Base do
       )
     end
 
+    it "warns about an optional class only from the SDK version that introduced it" do
+      patch = Module.new { def create = super }
+      integration = integration_patching do
+        [patch_target("LlmCostTrackerSpecResource", with: patch),
+         patch_target("LlmCostTrackerSpecMissing", with: patch, optional: true, since: "2.0.0")]
+      end
+      integration.install
+
+      allow(integration).to receive(:gem_version).and_return(Gem::Version.new("1.9.0"))
+      expect(integration.status).to have_attributes(status: :ok, message: "spec_sdk integration installed")
+
+      allow(integration).to receive(:gem_version).and_return(Gem::Version.new("2.0.0"))
+      expect(integration.status).to have_attributes(status: :warn, message: include("without LlmCostTrackerSpecMissing"))
+    end
+
     it "lists missing classes and methods, except optional classes and targets that may lack the methods" do
       patch = Module.new { def stream = super }
       integration = integration_patching do
