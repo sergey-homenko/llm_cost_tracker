@@ -8,12 +8,15 @@ module LlmCostTracker
       class << self
         def with(tags)
           stack = Fiber[KEY] || []
+          shared = Thread.current[KEY]
           scope = [Thread.current, Sanitizer.call((tags || {}).to_h)]
           Fiber[KEY] = stack + [scope]
+          Thread.current[KEY] = Array(shared) + [scope.dup]
           yield
         ensure
           scope&.clear
           Fiber[KEY] = stack
+          Thread.current[KEY] = shared
         end
 
         def tags
@@ -23,9 +26,10 @@ module LlmCostTracker
         end
 
         def scoped
-          Array(Fiber[KEY]).each_with_object({}) do |(owner, tags), merged|
-            merged.merge!(tags) if owner.equal?(Thread.current)
-          end
+          current = Thread.current
+          shared = Array(current[KEY]).reject { |owner, _| owner.equal?(current) }
+          own = Array(Fiber[KEY]).select { |owner, _| owner.equal?(current) }
+          (shared + own).each_with_object({}) { |(_, tags), merged| merged.merge!(tags) }
         end
 
         def call_default_tags(proc_or_lambda)
