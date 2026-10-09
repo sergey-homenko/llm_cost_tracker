@@ -11,6 +11,7 @@ There are no migrations. Check these after upgrading:
 - **xAI, Mistral and Perplexity are captured without registration.** Faraday now records their calls and adds `stream_options.include_usage` to xAI and Mistral streaming chat completions (`capture.request_stream_usage = false` leaves request bodies untouched), and the official openai gem records them as `xai`, `mistral` and `perplexity` instead of `openai`.
 - **Bedrock through the official openai gem.** Calls on Amazon Bedrock hosts are recorded as `bedrock` instead of `openai`.
 - **`prices:refresh` writes to the database.** After writing a new `config.pricing.file`, it runs `backfill_unknown_pricing` when the calls ledger is reachable.
+- **MySQL: an unused index.** MySQL has no partial indexes, so `index_llm_cost_tracker_calls_on_unpriced` was built there as a plain index on `id` that no query uses; the install and `upgrade_indexes` migrations now skip it on MySQL, and you can drop it with `remove_index :llm_cost_tracker_calls, name: :index_llm_cost_tracker_calls_on_unpriced`.
 
 ## v0.14.1 → v0.14.2
 

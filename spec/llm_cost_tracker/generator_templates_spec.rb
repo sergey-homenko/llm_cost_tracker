@@ -331,7 +331,8 @@ RSpec.describe "generator templates" do
       migration.migrate(:up)
 
       names = connection.indexes(:llm_cost_tracker_calls).map(&:name)
-      expect(names).to include("index_llm_cost_tracker_calls_on_unpriced")
+      expect(names.include?("index_llm_cost_tracker_calls_on_unpriced"))
+        .to eq(LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection))
       expect(names).to include("index_llm_cost_tracker_calls_on_provider_and_tracked_at")
 
       migration.migrate(:down)

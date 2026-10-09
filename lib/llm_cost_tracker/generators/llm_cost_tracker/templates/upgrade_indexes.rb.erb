@@ -10,7 +10,7 @@ class UpgradeLlmCostTrackerIndexes < ActiveRecord::Migration[<%= ActiveRecord::M
 
   def up
     LlmCostTracker::Ledger::Schema::Adapter.drop_invalid_index(connection, UNPRICED_INDEX)
-    add_index CALLS, :id, name: UNPRICED_INDEX, where: "total_cost IS NULL", **add_index_options
+    add_index CALLS, :id, name: UNPRICED_INDEX, where: "total_cost IS NULL", **add_index_options if postgresql?
     return unless table_exists?(INBOX)
 
     remove_index INBOX, column: UNUSED_INBOX_INDEX, **remove_index_options

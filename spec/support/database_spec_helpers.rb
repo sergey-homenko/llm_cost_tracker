@@ -182,8 +182,10 @@ module LlmCostTrackerDatabaseSpecHelpers
     connection.add_index :llm_cost_tracker_calls, %i[model tracked_at]
     connection.add_index :llm_cost_tracker_calls, :cost_status
     connection.add_index :llm_cost_tracker_calls, :provider_response_id
-    connection.add_index :llm_cost_tracker_calls, :id, name: :index_llm_cost_tracker_calls_on_unpriced,
-                                                      where: "total_cost IS NULL"
+    if LlmCostTracker::Ledger::Schema::Adapter.postgresql?(connection)
+      connection.add_index :llm_cost_tracker_calls, :id, name: :index_llm_cost_tracker_calls_on_unpriced,
+                                                        where: "total_cost IS NULL"
+    end
     connection.add_index :llm_cost_tracker_call_line_items, %i[llm_cost_tracker_call_id position]
     connection.add_index :llm_cost_tracker_call_tags, :llm_cost_tracker_call_id
     if LlmCostTracker::Ledger::Schema::Adapter.mysql?(connection)
