@@ -97,7 +97,8 @@ module LlmCostTracker
     end
 
     def per_tag_budget_check
-      return if LlmCostTracker.configuration.budgets.per_tag.empty? || !LlmCostTracker::CallTag.table_exists?
+      return if LlmCostTracker.configuration.budgets.per_tag.empty?
+      return unless Probe.table_exists?("llm_cost_tracker_call_tags")
       return if Budget::PerTag.columns?
 
       Check.new(

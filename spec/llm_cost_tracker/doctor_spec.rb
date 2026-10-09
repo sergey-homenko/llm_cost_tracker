@@ -119,6 +119,14 @@ RSpec.describe LlmCostTracker::Doctor do
     expect(described_class::Probe.table_exists?("llm_cost_tracker_calls")).to be false
   end
 
+  it "reports instead of raising when the database is unreachable and per-tag budgets are set" do
+    LlmCostTracker.configuration.budgets.per_tag = { tenant: { daily: 1 } }
+    allow(LlmCostTracker::Call).to receive(:lease_connection).and_raise(ActiveRecord::ConnectionNotEstablished)
+    allow(LlmCostTracker::CallTag).to receive(:table_exists?).and_raise(ActiveRecord::ConnectionNotEstablished)
+
+    expect(described_class.call.map(&:name)).not_to include("per-tag budgets")
+  end
+
   it "skips isolated checks when the ledger table is missing" do
     allow(described_class::Probe).to receive(:table_exists?).with("llm_cost_tracker_calls").and_return(false)
 
