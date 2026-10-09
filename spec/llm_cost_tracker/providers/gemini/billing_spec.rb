@@ -9,6 +9,7 @@ RSpec.describe "Gemini billing" do
   let(:events) { [] }
 
   before do |example|
+    travel_to(Time.utc(2026, 10, 9, 12))
     allow(LlmCostTracker::Ingestion::Inbox).to receive(:save).and_return(true)
     allow(LlmCostTracker::Ledger::Store).to receive(:insert).and_return(true)
     ActiveSupport::Notifications.subscribe(LlmCostTracker::Tracker::EVENT_NAME) { |*, payload| events << payload }

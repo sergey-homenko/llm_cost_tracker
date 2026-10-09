@@ -117,6 +117,7 @@ RSpec.describe LlmCostTracker::Ledger::Isolation do
 
   it "returns the LLM response and records the call when the budget read after it times out inside the host transaction" do
     skip "uses PostgreSQL LOCK TABLE and lock_timeout" unless postgresql?
+    travel_to(Time.utc(2026, 10, 15, 12))
     LlmCostTracker.configuration.budgets.totals_source = :cache
     LlmCostTracker.configuration.budgets.monthly = 100
     body = { id: "chatcmpl_budget", model: "gpt-4o", choices: [],
