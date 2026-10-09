@@ -108,6 +108,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A `tags.default` proc that returns `nil` or `false` adds no tags; `false` failed SDK streams before the request and dropped blocking calls.
 - Usage that reports only `total_tokens`, with no input or output split, is recorded as `cost_status: unknown` on a priced model instead of `free` at $0.
 - `prices:check` and `prices:refresh` print changed rates as plain decimals instead of forms like `0.375e1`.
+- `prices:refresh` and `prices:check` write and print the snapshot URL without its credentials, query string or fragment; only known secret parameter names were masked.
 
 ## [0.14.2] - 2026-09-28
 

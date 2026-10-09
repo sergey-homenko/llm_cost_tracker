@@ -26,8 +26,19 @@ module LlmCostTracker
         READ_TIMEOUT = 10
         WRITE_TIMEOUT = 10
 
+        def self.scrub_url(url)
+          uri = URI.parse(url.to_s)
+          uri.user = nil
+          uri.password = nil
+          uri.query = nil
+          uri.fragment = nil
+          uri.to_s
+        rescue URI::InvalidURIError
+          "[invalid url]"
+        end
+
         def get(url, etag: nil, redirects: 0)
-          safe_url = scrub_url(url)
+          safe_url = self.class.scrub_url(url)
           raise Error, "Too many redirects while fetching #{safe_url}" if redirects > MAX_REDIRECTS
 
           response, body = fetch_response(https_uri(url), etag)
@@ -38,7 +49,7 @@ module LlmCostTracker
           else raise Error, "Unable to fetch #{safe_url}: HTTP #{response.code}"
           end
         rescue OpenSSL::SSL::SSLError, SocketError, SystemCallError, Timeout::Error => e
-          raise Error, "Unable to fetch #{scrub_url(url)}: #{e.class}: #{e.message}"
+          raise Error, "Unable to fetch #{self.class.scrub_url(url)}: #{e.class}: #{e.message}"
         end
 
         private
@@ -52,20 +63,9 @@ module LlmCostTracker
 
         def redirect_url(url, response)
           location = response["location"]
-          raise Error, "Redirect without location while fetching #{scrub_url(url)}" if location.blank?
+          raise Error, "Redirect without location while fetching #{self.class.scrub_url(url)}" if location.blank?
 
           URI.join(url, location).to_s
-        end
-
-        def scrub_url(url)
-          uri = URI.parse(url.to_s)
-          uri.user = nil
-          uri.password = nil
-          uri.query = nil
-          uri.fragment = nil
-          uri.to_s
-        rescue URI::InvalidURIError
-          "[invalid url]"
         end
 
         def fetch_response(uri, etag)

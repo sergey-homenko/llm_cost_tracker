@@ -51,7 +51,7 @@ module LlmCostTracker
           end
           RefreshResult.new(
             path: path,
-            source_url: Redaction.text(url),
+            source_url: Fetcher.scrub_url(url),
             source_version: response.source_version,
             changes: changes,
             suspicious: suspicious,
@@ -64,7 +64,7 @@ module LlmCostTracker
           response, _remote, changes, suspicious = compare(path, url, fetcher, today)
           CheckResult.new(
             path: path,
-            source_url: Redaction.text(url),
+            source_url: Fetcher.scrub_url(url),
             source_version: response.source_version,
             changes: changes,
             suspicious: suspicious,
