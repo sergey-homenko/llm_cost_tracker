@@ -110,6 +110,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `prices:check` and `prices:refresh` print changed rates as plain decimals instead of forms like `0.375e1`.
 - `prices:refresh` and `prices:check` write and print the snapshot URL without its credentials, query string or fragment; only known secret parameter names were masked.
 - `Ingestion::Worker.flush!` inside a request, a job or `rails runner` notices inbox rows another process drained, instead of reading a cached answer until it times out.
+- `llm_cost_tracker:backfill_tag_costs` pages through tag rows by id, so a batch no longer rescans the rows already filled.
 
 ## [0.14.2] - 2026-09-28
 

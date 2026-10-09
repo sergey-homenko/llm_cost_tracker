@@ -274,6 +274,22 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
       expect(rows.map(&:tracked_at)).to all(be_within(1).of(event.tracked_at))
     end
 
+    it "pages through the unfilled rows by id instead of rescanning the filled ones" do
+      configure_per_tag
+      3.times { spend(1.0, tags: { tenant_id: 42 }) }
+      LlmCostTracker::CallTag.update_all(total_cost: nil, tracked_at: nil)
+      selects = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        selects << payload[:sql] if payload[:sql].start_with?("SELECT") && payload[:sql].include?("call_tags")
+      end
+
+      expect(described_class.backfill(batch_size: 1)).to eq(3)
+      expect(selects.size).to eq(4)
+      expect(selects).to all(match(/id\W* >= /))
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
     it "leaves already filled rows alone and reports nothing to do" do
       configure_per_tag
       spend(1.0, tags: { tenant_id: 42 })

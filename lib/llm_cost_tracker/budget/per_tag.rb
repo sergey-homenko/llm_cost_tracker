@@ -92,11 +92,13 @@ module LlmCostTracker
           return 0 unless columns?
 
           filled = 0
+          after = 0
           loop do
-            copied = copy_next_batch(batch_size)
-            break if copied.zero?
+            ids = unfilled_ids(after, batch_size)
+            break if ids.empty?
 
-            filled += copied
+            filled += LlmCostTracker::CallTag.lease_connection.update(copy_sql(ids))
+            after = ids.last
           end
           filled
         end
@@ -134,11 +136,9 @@ module LlmCostTracker
           bucket...bucket.public_send(WINDOW_NEXTS.fetch(window))
         end
 
-        def copy_next_batch(batch_size)
-          ids = LlmCostTracker::CallTag.where(TIME_COLUMN => nil).limit(batch_size).pluck(:id)
-          return 0 if ids.empty?
-
-          LlmCostTracker::CallTag.lease_connection.update(copy_sql(ids))
+        def unfilled_ids(after, batch_size)
+          LlmCostTracker::CallTag.where(TIME_COLUMN => nil).where(id: (after + 1)..)
+                                 .order(:id).limit(batch_size).pluck(:id)
         end
 
         def copy_sql(ids)
