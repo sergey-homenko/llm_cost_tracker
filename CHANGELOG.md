@@ -106,6 +106,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `budgets.monthly`, `daily` and `per_call` given as a numeric string, such as an `ENV` value, are used as numbers instead of failing every call or never firing; a non-numeric or negative value, or an `on_exceeded` that cannot be called, raises at `configure`.
 - The Faraday middleware keeps `with_tags` and `tags.default` tags on a call when its own `tags:` proc raises; it dropped them all.
 - A `tags.default` proc that returns `nil` or `false` adds no tags; `false` failed SDK streams before the request and dropped blocking calls.
+- Usage that reports only `total_tokens`, with no input or output split, is recorded as `cost_status: unknown` on a priced model instead of `free` at $0.
 
 ## [0.14.2] - 2026-09-28
 

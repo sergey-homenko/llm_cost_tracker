@@ -66,7 +66,7 @@ module LlmCostTracker
       def token_cost
         return @token_cost if defined?(@token_cost)
 
-        known = priceable? && @usage_source != Usage::Source::UNKNOWN && !only_unpriced_lines?
+        known = priceable? && @usage_source != Usage::Source::UNKNOWN && !only_unpriced_lines? && !unsplit_total?
         @token_cost = known ? Totals.token_cost(priced_token_line_items, match.source.currency) : nil
       end
 
@@ -133,6 +133,11 @@ module LlmCostTracker
 
       def billed_line
         @line_items.find { |line_item| line_item.kind == "billed_request" }
+      end
+
+      def unsplit_total?
+        @token_usage.total_tokens.to_i.positive? && @token_usage.priced_quantities.values.none?(&:positive?) &&
+          match.prices.values_at("input", "output").any? { |rate| rate.to_f.positive? }
       end
 
       def all_billable_unpriced?

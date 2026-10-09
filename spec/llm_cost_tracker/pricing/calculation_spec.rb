@@ -186,6 +186,19 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
     expect(with_search.cost_status).to eq(LlmCostTracker::Charges::CostStatus::UNKNOWN)
   end
 
+  it "leaves a total-only token count unknown on a priced model, partial next to a priced service line, free on a free one" do
+    LlmCostTracker.configure { |c| c.pricing.overrides = { "free-model" => { "input" => 0.0, "output" => 0.0 } } }
+    search = LlmCostTracker::Charges::LineItem.build(dimension_key: "web_search_request", quantity: 1)
+    total_only = described_class.for(provider: "openai", model: "gpt-4o", tokens: { total_tokens: 500 }, pricing_mode: nil)
+    with_search = described_class.for(provider: "anthropic", model: "claude-sonnet-4-5", tokens: { total_tokens: 500 },
+                                      pricing_mode: nil, line_items: [search])
+    free = described_class.for(provider: "openai", model: "free-model", tokens: { total_tokens: 500 }, pricing_mode: nil)
+
+    expect([total_only.cost_status, total_only.cost]).to eq([LlmCostTracker::Charges::CostStatus::UNKNOWN, nil])
+    expect(with_search.cost_status).to eq(LlmCostTracker::Charges::CostStatus::PARTIAL)
+    expect(free.cost_status).to eq(LlmCostTracker::Charges::CostStatus::FREE)
+  end
+
   it "keeps service rates dropped from the total on currency mismatch out of the snapshot" do
     LlmCostTracker.configure { |c| c.pricing.overrides = { "snap-model" => { "input" => 2.0 } } }
     eur_line = LlmCostTracker::Charges::LineItem.build(
