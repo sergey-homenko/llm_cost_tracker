@@ -35,17 +35,17 @@ A bug-fix release with no migrations. Check these after upgrading:
 
 ## v0.13 → v0.14
 
-v0.14 reorganises the initializer and adds two optional migrations. No BREAKING changes — an install that upgrades the gem and changes nothing else keeps working.
+v0.14 reorganises the initializer and adds two optional migrations. No BREAKING changes: an install that upgrades the gem and changes nothing else keeps working.
 
 ### Required if you pass `enforce_budget: true` to `track` (BREAKING)
 
-`LlmCostTracker.track(enforce_budget: true)` used to raise before writing anything, so the call that tripped the budget never reached the ledger — and because the window total is read from the ledger, it never advanced, and every later call raised and was dropped as well. It now records the call and then raises, and the error carries `stage: :post_spend`. Code that matches on `stage` needs updating.
+`LlmCostTracker.track(enforce_budget: true)` used to raise before writing anything, so the call that tripped the budget never reached the ledger, and because the window total is read from the ledger, it never advanced, and every later call raised and was dropped as well. It now records the call and then raises, and the error carries `stage: :post_spend`. Code that matches on `stage` needs updating.
 
 `LlmCostTracker.track_stream(enforce_budget: true)` is unchanged: it runs before your block, so it still raises `stage: :pre_send` and nothing is spent.
 
 ### Recommended: index the unpriced backfill scope
 
-`llm_cost_tracker:backfill_unknown_pricing` filters on `total_cost IS NULL`, a scope that had no index at all, so every batch scanned the whole ledger. A partial index over exactly that scope fixes it. The same migration drops `llm_cost_tracker_ingestion_inbox_entries (locked_at, id)`, which the drain never uses — it claims rows with `ORDER BY id` and wins on the primary key instead.
+`llm_cost_tracker:backfill_unknown_pricing` filters on `total_cost IS NULL`, a scope that had no index at all, so every batch scanned the whole ledger. A partial index over exactly that scope fixes it. The same migration drops `llm_cost_tracker_ingestion_inbox_entries (locked_at, id)`, which the drain never uses; it claims rows with `ORDER BY id` and wins on the primary key instead.
 
 ```bash
 bin/rails generate llm_cost_tracker:upgrade_indexes
@@ -58,14 +58,14 @@ Measured on 2M calls: the backfill scope drops from 290 ms to 0.3 ms.
 
 ### Optional: one budget per tag value
 
-`config.budgets.per_tag` caps each distinct value of a tag separately — every tenant gets its own monthly budget rather than sharing one, for as many tags as you declare. It reads from `llm_cost_tracker_call_tags`, which needs two new columns:
+`config.budgets.per_tag` caps each distinct value of a tag separately: every tenant gets its own monthly budget rather than sharing one, for as many tags as you declare. It reads from `llm_cost_tracker_call_tags`, which needs two new columns:
 
 ```bash
 bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets
 bin/rails db:migrate
 ```
 
-The migration is DDL only — it adds the columns and replaces the `(key, value)` index with `(key, value, tracked_at)`. The old index is a prefix of the new one, so nothing else regresses and the index count stays the same; on PostgreSQL it runs `CONCURRENTLY` outside a transaction.
+The migration is DDL only: it adds the columns and replaces the `(key, value)` index with `(key, value, tracked_at)`. The old index is a prefix of the new one, so nothing else regresses and the index count stays the same; on PostgreSQL it runs `CONCURRENTLY` outside a transaction.
 
 Tag rows written before the migration keep a null cost and are not counted against any per-tag budget. To count them, backfill in batches once the migration is in:
 
@@ -100,7 +100,7 @@ Configuration options are grouped into `budgets`, `capture`, `ingestion`, `prici
 | `config.auto_enable_stream_usage` | `config.capture.request_stream_usage` |
 | `config.openai_compatible_providers` | `config.capture.openai_compatible_providers` |
 
-`config.log_level` is dropped with no replacement — it never affected any log output. `Rails.logger` owns the level.
+`config.log_level` is dropped with no replacement; it never affected any log output. `Rails.logger` owns the level.
 
 Reading `config.ingestion` now returns the namespace object rather than the mode, so code that compared it to `:async` must read `config.ingestion.mode`. Assignment (`config.ingestion = :async`) still works.
 
@@ -126,7 +126,7 @@ LlmCostTracker.track(provider: "openai", model: "gpt-4o",
 
 The accepted keys are `input_tokens`, `cache_read_input_tokens`, `cache_write_input_tokens`, `cache_write_extended_input_tokens`, `output_tokens`, `audio_input_tokens`, `audio_output_tokens`, `image_input_tokens`, `image_output_tokens`, `total_tokens`, and `hidden_output_tokens`.
 
-If your app builds the token hash dynamically, audit it before upgrading — keys that were silently ignored now abort the call.
+If your app builds the token hash dynamically, audit it before upgrading: keys that were silently ignored now abort the call.
 
 ## v0.11 → v0.12
 
@@ -192,11 +192,11 @@ LlmCostTracker.track(provider: "openai", model: "gpt-4o",
                      tokens: { input_tokens: 1500, output_tokens: 320, cache_read_input_tokens: 100 })
 ```
 
-The pricing field names in `prices_file` / `pricing_overrides` are unchanged — they stay `input`, `output`, `cache_read_input`, … (those are per-component rates, a separate vocabulary). A `tokens:` hash containing an unrecognized key raises `ArgumentError` (as does `stream.usage`), so a typo'd or missed callsite fails loudly instead of undercounting the ledger.
+The pricing field names in `prices_file` / `pricing_overrides` are unchanged: they stay `input`, `output`, `cache_read_input`, … (those are per-component rates, a separate vocabulary). A `tokens:` hash containing an unrecognized key raises `ArgumentError` (as does `stream.usage`), so a typo'd or missed callsite fails loudly instead of undercounting the ledger.
 
 ### Required: update references to the split `Billing` namespace (BREAKING)
 
-The `Billing` namespace mixed three concerns; it is split by responsibility. Capture is automatic, so most apps reference none of these and do nothing. If your code references these constants, rename them — the DB schema, columns, and `pricing_snapshot` shape are unchanged:
+The `Billing` namespace mixed three concerns; it is split by responsibility. Capture is automatic, so most apps reference none of these and do nothing. If your code references these constants, rename them; the DB schema, columns, and `pricing_snapshot` shape are unchanged:
 
 | Old | New |
 | --- | --- |
@@ -216,7 +216,7 @@ The engine no longer adds `:tag` / `:tag_value` to `Rails.application.config.fil
 
 ### Recommended for `ingestion: :async` rolling deploys: drain the inbox first
 
-The serialized event `cost` payload changed shape this release, and the inbox payload schema version was intentionally left unchanged so v0.12 workers can still read pre-upgrade rows. A worker still running the previous release reads a v0.12 payload without error but records the call with a NULL `total_cost` — the cost is silently lost. A stop/start deploy avoids this entirely; on a rolling deploy, drain the async inbox — or stop the old workers — before booting v0.12 workers. v0.12 workers read both the old and new payload, so rows written before the upgrade ingest normally.
+The serialized event `cost` payload changed shape this release, and the inbox payload schema version was intentionally left unchanged so v0.12 workers can still read pre-upgrade rows. A worker still running the previous release reads a v0.12 payload without error but records the call with a NULL `total_cost`, so the cost is silently lost. A stop/start deploy avoids this entirely; on a rolling deploy, drain the async inbox (or stop the old workers) before booting v0.12 workers. v0.12 workers read both the old and new payload, so rows written before the upgrade ingest normally.
 
 ## v0.10 → v0.11
 
@@ -252,9 +252,9 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-v0.10 also adds a new optional `config.ingestion_pool_size` (default `2`) to size the dedicated async-ingestion connection pool — set it explicitly only if your PG / PgBouncer budget is tight.
+v0.10 also adds a new optional `config.ingestion_pool_size` (default `2`) to size the dedicated async-ingestion connection pool; set it explicitly only if your PG / PgBouncer budget is tight.
 
-The DB schema is unchanged — only the config surface changes.
+The DB schema is unchanged; only the config surface changes.
 
 ### Optional: backfill calls priced after the fact
 
@@ -264,7 +264,7 @@ When a model lands in the ledger before its pricing entry is in the bundled snap
 bin/rails llm_cost_tracker:backfill_unknown_pricing
 ```
 
-The task recomputes `total_cost`, the pricing snapshot, per-component costs, and the rollup buckets for every call still missing a cost. Idempotent — calls that already have a cost are skipped.
+The task recomputes `total_cost`, the pricing snapshot, per-component costs, and the rollup buckets for every call still missing a cost. Idempotent: calls that already have a cost are skipped.
 
 ## v0.8.x → v0.9
 
@@ -272,7 +272,7 @@ v0.9 makes the rollup, inbox, and lease tables opt-in, splits ingestion between 
 
 ### Existing v0.9 (rolling preview) installs
 
-Existing installs already have `call_rollups`, `ingestion_inbox_entries`, and `ingestion_leases`. Their tables are still compatible — only the defaults changed. Set the matching config flags in the initializer to keep the previous behavior:
+Existing installs already have `call_rollups`, `ingestion_inbox_entries`, and `ingestion_leases`. Their tables are still compatible; only the defaults changed. Set the matching config flags in the initializer to keep the previous behavior:
 
 ```ruby
 LlmCostTracker.configure do |config|
@@ -284,7 +284,7 @@ end
 Without those flags, `Tracker.record` writes inline, budget reads scan `llm_cost_tracker_calls` live, and the inbox/leases/rollups tables sit unused (doctor warns until you either flip the flags or drop the tables).
 
 > v0.10 renamed `config.durable_ingestion = true` to
-> `config.ingestion = :async` (BREAKING) — if you're jumping straight
+> `config.ingestion = :async` (BREAKING): if you're jumping straight
 > from v0.8 to v0.10, use the v0.10 names from the
 > [v0.9.x → v0.10](#v09x--v010) section above.
 
@@ -326,13 +326,13 @@ bin/rails generate llm_cost_tracker:upgrade_image_tokens
 bin/rails db:migrate
 ```
 
-The migration only adds columns (defaults to 0); it does not rewrite existing rows. Independent of the rollups upgrade — order doesn't matter.
+The migration only adds columns (defaults to 0); it does not rewrite existing rows. Independent of the rollups upgrade; order doesn't matter.
 
-### Invoice reconciliation (removed in v0.12 — skip)
+### Invoice reconciliation (removed in v0.12; skip)
 
 The opt-in reconciliation subsystem was removed in v0.12. Skip every reconciliation step that was in this section. If you already created the `llm_cost_tracker_provider_invoices` / `_provider_invoice_imports` tables on a v0.9 install, see [v0.11 → v0.12](#v011--v012) for the drop migration.
 
-<!-- HISTORICAL ONLY — left for context; do not run on v0.12+. The reconciliation generator, `llm_cost_tracker:reconcile:*` rake tasks, `Reconciliation.import` / `.diff`, `register_reconciliation_importer`, and the two provider invoice tables were all removed in v0.12. If invoice-vs-ledger reconciliation ships again it will live in a separate gem.
+<!-- HISTORICAL ONLY: left for context; do not run on v0.12+. The reconciliation generator, `llm_cost_tracker:reconcile:*` rake tasks, `Reconciliation.import` / `.diff`, `register_reconciliation_importer`, and the two provider invoice tables were all removed in v0.12. If invoice-vs-ledger reconciliation ships again it will live in a separate gem.
 
 Run only if you plan to import provider-side invoices:
 
@@ -341,7 +341,7 @@ bin/rails generate llm_cost_tracker:reconciliation
 bin/rails db:migrate
 ```
 
-Or hand-write (PostgreSQL — for MySQL swap `t.jsonb :metadata, null: false, default: {}` for `t.json :metadata, null: false`; MySQL JSON columns don't accept a SQL-level default):
+Or hand-write (PostgreSQL; for MySQL swap `t.jsonb :metadata, null: false, default: {}` for `t.json :metadata, null: false`; MySQL JSON columns don't accept a SQL-level default):
 
 ```ruby
 require "llm_cost_tracker/ledger/schema/adapter"
@@ -400,7 +400,7 @@ Rake tasks accept `PROVIDER=`:
 bin/rails llm_cost_tracker:reconcile:import SOURCE=csv PROVIDER=openai INPUT=invoice.json
 ```
 
-Imports already in the database are recovered transparently — Doctor and the dashboard read `metadata["provider"]` from the most recent invoice for a source when no explicit provider is supplied. New imports always write `metadata["provider"]`.
+Imports already in the database are recovered transparently: Doctor and the dashboard read `metadata["provider"]` from the most recent invoice for a source when no explicit provider is supplied. New imports always write `metadata["provider"]`.
 
 ### Provider-scoped `ProviderInvoiceImport` resume state
 
@@ -415,7 +415,7 @@ Legacy rows back-fill to `provider = ""`. Callers passing `resume_cursor_for(sou
 
 ### Optional GIN index on `provider_invoices.metadata` (PostgreSQL)
 
-`Reconciliation::Diff#apply_metadata_scope` filters invoices with `metadata @> '<criteria>'::jsonb` (JSONB containment) so the dynamic metadata-scope filter stays fast on large invoice tables under PostgreSQL. The default `jsonb_ops` GIN operator class accelerates `@>` lookups, not `->>` text-extraction filters — direct `metadata->>'key' = ?` queries still seq-scan. Fresh installs from `0.10` and later get the index automatically; existing installs can opt in:
+`Reconciliation::Diff#apply_metadata_scope` filters invoices with `metadata @> '<criteria>'::jsonb` (JSONB containment) so the dynamic metadata-scope filter stays fast on large invoice tables under PostgreSQL. The default `jsonb_ops` GIN operator class accelerates `@>` lookups, not `->>` text-extraction filters; direct `metadata->>'key' = ?` queries still seq-scan. Fresh installs from `0.10` and later get the index automatically; existing installs can opt in:
 
 ```bash
 bin/rails generate llm_cost_tracker:upgrade_provider_invoices_metadata_index
@@ -434,11 +434,11 @@ The engine schema check (which renders the "Setup required" page when tables dri
 
 **0.8 is a one-shot rebuild of the storage layer.** Per-component cost columns and the separate `service_charges` table are gone. Tokens and tool/runtime charges now share one shape and live in a dedicated line items table. Several tables were also renamed during the v0.8 cycle (`llm_api_calls` → `llm_cost_tracker_calls`, `llm_cost_tracker_period_totals` → `llm_cost_tracker_call_rollups`, `llm_cost_tracker_inbox_events` → `llm_cost_tracker_ingestion_inbox_entries`, `llm_cost_tracker_ingestor_leases` → `llm_cost_tracker_ingestion_leases`).
 
-There is no rolling-deploy path — drain the durable inbox on 0.7 first, then deploy 0.8. Mixed-version processes will fight over schema and ingestion contract.
+There is no rolling-deploy path: drain the durable inbox on 0.7 first, then deploy 0.8. Mixed-version processes will fight over schema and ingestion contract.
 
 ### Prerequisites
 
-- **Ruby 3.4+ is required.** v0.7 supported 3.2+; v0.8 enforces 3.4 in the gemspec. `bundle update llm_cost_tracker` will fail on older Ruby — bump the runtime first.
+- **Ruby 3.4+ is required.** v0.7 supported 3.2+; v0.8 enforces 3.4 in the gemspec. `bundle update llm_cost_tracker` will fail on older Ruby; bump the runtime first.
 - **Drain the durable inbox on v0.7** before swapping versions. v0.8 dropped v0/v1 inbox payload compatibility; only v2 payloads are accepted. Any undrained rows produced by v0.6 or earlier will be rejected after the bump.
 
 ```bash
@@ -476,7 +476,7 @@ Renamed tables: `llm_api_calls` → `llm_cost_tracker_calls`; `llm_cost_tracker_
 | `Billing::CostStatus.call(service_charges:)` | `service_line_items:` |
 | Top-level `LlmCostTracker.flush!`, `shutdown!`, `enforce_budget!` | Use `LlmCostTracker::Ingestion::Worker.flush!` / `.shutdown!`; `enforce_budget!` is internal |
 
-Inbox payload version stays at `2`; line items are embedded in the existing shape. v0/v1 payloads are no longer accepted — drain before the bump (see Prerequisites).
+Inbox payload version stays at `2`; line items are embedded in the existing shape. v0/v1 payloads are no longer accepted; drain before the bump (see Prerequisites).
 
 `Call#parsed_tags`, `Call.by_tags`, `Call.by_tag`, `Call.cost_by_tag`, and `Call.group_by_tag` now read `llm_cost_tracker_call_tags` instead of the JSONB column. The Ruby API is unchanged; custom queries that joined directly against `calls.tags` need to switch to the normalized table.
 
@@ -484,7 +484,7 @@ Inbox payload version stays at `2`; line items are embedded in the existing shap
 
 Because the storage rebuild touches header columns, child tables, and the JSONB tag column at once, the gem does not ship an automated 0.7 → 0.8 migration. Two practical paths:
 
-**Path A — drop and reinstall.** Suitable for small ledgers or apps where historical data isn't critical. Path A **destroys all v0.7 ledger data**. Take a backup first.
+**Path A: drop and reinstall.** Suitable for small ledgers or apps where historical data isn't critical. Path A **destroys all v0.7 ledger data**. Take a backup first.
 
 ```bash
 # 1. Back up the existing tables.
@@ -527,11 +527,11 @@ bin/rails llm_cost_tracker:doctor
 
 You'll lose pre-0.8 history. Re-attribution starts from the next captured call.
 
-**Path B — keep history.** For larger ledgers, write a one-off migration that:
+**Path B: keep history.** For larger ledgers, write a one-off migration that:
 
-1. **Creates the v0.8 tables** (`call_line_items`, `call_tags`, `provider_invoices`, plus renames `period_totals`/`inbox_events`/ `ingestor_leases` if you're coming from a pre-rename install). Use the install template at `lib/llm_cost_tracker/generators/llm_cost_tracker/templates/create_llm_cost_tracker_calls.rb.erb` as the source of truth for column types and indexes — copy the `create_table` blocks for the new tables into your migration verbatim.
+1. **Creates the v0.8 tables** (`call_line_items`, `call_tags`, `provider_invoices`, plus renames `period_totals`/`inbox_events`/ `ingestor_leases` if you're coming from a pre-rename install). Use the install template at `lib/llm_cost_tracker/generators/llm_cost_tracker/templates/create_llm_cost_tracker_calls.rb.erb` as the source of truth for column types and indexes; copy the `create_table` blocks for the new tables into your migration verbatim.
 
-2. **Backfills `call_tags` rows from the JSONB / JSON `tags` column.** The Ruby path below is the canonical option on every adapter — it re-uses `LlmCostTracker::Ledger::Tags::Encoding.encode` so Hash / Array tag values are written as the same sorted-keys, no-whitespace `JSON.generate(...)` form that `Ledger::Store` writes for new calls. That's what `LlmCostTracker::Call.by_tag(key, nested_value)` looks up against the `(key, value)` composite index:
+2. **Backfills `call_tags` rows from the JSONB / JSON `tags` column.** The Ruby path below is the canonical option on every adapter: it re-uses `LlmCostTracker::Ledger::Tags::Encoding.encode` so Hash / Array tag values are written as the same sorted-keys, no-whitespace `JSON.generate(...)` form that `Ledger::Store` writes for new calls. That's what `LlmCostTracker::Call.by_tag(key, nested_value)` looks up against the `(key, value)` composite index:
 
    ```ruby
    LlmCostTracker::Call.find_each(batch_size: 500) do |call|
@@ -549,7 +549,7 @@ You'll lose pre-0.8 history. Re-attribution starts from the next captured call.
    end
    ```
 
-   PostgreSQL also has a pure-SQL shortcut, but **only if your `tags` column never stored nested Hash/Array values** (most installs). `jsonb_each_text` produces `text` representations whose whitespace layout for nested values doesn't match `JSON.generate` — running it on installs with nested tag values strands those rows behind `Call.by_tag`'s exact-match WHERE clause. For scalar-only `tags` (strings / numbers / booleans):
+   PostgreSQL also has a pure-SQL shortcut, but **only if your `tags` column never stored nested Hash/Array values** (most installs). `jsonb_each_text` produces `text` representations whose whitespace layout for nested values doesn't match `JSON.generate`; running it on installs with nested tag values strands those rows behind `Call.by_tag`'s exact-match WHERE clause. For scalar-only `tags` (strings / numbers / booleans):
 
    ```sql
    INSERT INTO llm_cost_tracker_call_tags (llm_cost_tracker_call_id, key, value)
@@ -566,7 +566,7 @@ Run it in a maintenance window. `bin/rails llm_cost_tracker:doctor` is the sourc
 
 ### What to grep for in your code
 
-The grep below targets removed APIs only — it intentionally omits the `service_charges` key inside the bundled pricing config, which remains a legitimate price-file section name.
+The grep below targets removed APIs only; it intentionally omits the `service_charges` key inside the bundled pricing config, which remains a legitimate price-file section name.
 
 ```bash
 git grep -nE \

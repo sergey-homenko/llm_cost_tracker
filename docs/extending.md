@@ -122,7 +122,7 @@ Use provider-neutral token names when calling explicit APIs. Provider field name
 
 ## Notifications
 
-LLM Cost Tracker emits `llm_request.llm_cost_tracker` through `ActiveSupport::Notifications` after event build. Subscribers receive the canonical event payload — token usage, tags, pricing status, and the priced line items (tokens + tool/runtime charges in one shape).
+LLM Cost Tracker emits `llm_request.llm_cost_tracker` through `ActiveSupport::Notifications` after event build. Subscribers receive the canonical event payload: token usage, tags, pricing status, and the priced line items (tokens + tool/runtime charges in one shape).
 
 ## Dashboard Extensions
 

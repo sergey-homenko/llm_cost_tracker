@@ -12,7 +12,7 @@ LLM Cost Tracker stores everything in your app's database through ActiveRecord. 
 | `llm_cost_tracker_call_line_items` | Per-component cost rows: text/audio/cached tokens, tool charges. |
 | `llm_cost_tracker_call_tags` | Normalized tag rows for attribution queries. |
 
-Optional tables — only created when you opt in:
+Optional tables, created only when you opt in:
 
 | Table | Role | Created by |
 | --- | --- | --- |
@@ -113,13 +113,13 @@ Normalized attribution. One row per `key=value` pair on a call.
 | `llm_cost_tracker_call_id` | bigint, not null | FK with `on_delete: :cascade` |
 | `key` | string, not null | Tag key |
 | `value` | text, not null | Tag value (nested hashes are stored as JSON strings) |
-| `total_cost` | decimal(20,8), null | Copy of the call's cost, so a per-tag budget reads this table without a join. Null for a call whose pricing is unknown, and for rows written before the columns existed — `bin/rails llm_cost_tracker:backfill_tag_costs` fills the latter. Either way the spend is not counted against a per-tag budget. |
-| `tracked_at` | datetime, null | Copy of the call's time. The call's business time, never the write time — see [Budgets](budgets.md#per-tag-budgets). |
+| `total_cost` | decimal(20,8), null | Copy of the call's cost, so a per-tag budget reads this table without a join. Null for a call whose pricing is unknown, and for rows written before the columns existed; `bin/rails llm_cost_tracker:backfill_tag_costs` fills the latter. Either way the spend is not counted against a per-tag budget. |
+| `tracked_at` | datetime, null | Copy of the call's time. The call's business time, never the write time (see [Budgets](budgets.md#per-tag-budgets)). |
 
 Indexes:
 
 - `llm_cost_tracker_call_id`
-- `[key, value, tracked_at]` composite — high-cardinality tag filters (`Call.by_tag(:tenant_id, …)`) hit an index seek instead of a full key-prefix scan, and per-tag budget windows read the same index. MySQL gets `length: { value: 191 }` because of the index byte-length limit. It replaces the earlier `[key, value]` index, which is a prefix of it; existing installs upgrade with `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets && bin/rails db:migrate`.
+- `[key, value, tracked_at]` composite: high-cardinality tag filters (`Call.by_tag(:tenant_id, …)`) hit an index seek instead of a full key-prefix scan, and per-tag budget windows read the same index. MySQL gets `length: { value: 191 }` because of the index byte-length limit. It replaces the earlier `[key, value]` index, which is a prefix of it; existing installs upgrade with `bin/rails generate llm_cost_tracker:upgrade_per_tag_budgets && bin/rails db:migrate`.
 
 ## `llm_cost_tracker_call_rollups`
 
@@ -178,4 +178,4 @@ NUL bytes, which PostgreSQL rejects, are removed from every stored string, and i
 
 ## Schema health
 
-`bin/rails llm_cost_tracker:doctor` checks that the calls, line items and tags tables, and the call rollups and async ingestion tables when configured, carry the columns this version expects, except the tags table's per-tag budget columns (`total_cost`, `tracked_at`): without them doctor still passes, and per-tag budgets log a warning and are not enforced. It compares column names only — not types, and not indexes. When something is missing, the dashboard renders setup guidance instead of running queries.
+`bin/rails llm_cost_tracker:doctor` checks that the calls, line items and tags tables, and the call rollups and async ingestion tables when configured, carry the columns this version expects, except the tags table's per-tag budget columns (`total_cost`, `tracked_at`): without them doctor still passes, and per-tag budgets log a warning and are not enforced. It compares column names only, not types or indexes. When something is missing, the dashboard renders setup guidance instead of running queries.

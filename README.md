@@ -1,10 +1,10 @@
 # LLM Cost Tracker
 
-LLM spend tracking and budgets for Rails — by user, feature, or any tag, in your own database, no proxy.
+LLM spend tracking and budgets for Rails: by user, feature, or any tag, in your own database, no proxy.
 
 [![Gem Version](https://img.shields.io/gem/v/llm_cost_tracker.svg)](https://rubygems.org/gems/llm_cost_tracker) [![CI](https://github.com/sergey-homenko/llm_cost_tracker/actions/workflows/ruby.yml/badge.svg)](https://github.com/sergey-homenko/llm_cost_tracker/actions) [![codecov](https://codecov.io/gh/sergey-homenko/llm_cost_tracker/branch/main/graph/badge.svg)](https://codecov.io/gh/sergey-homenko/llm_cost_tracker)
 
-Not Langfuse, Helicone, or LiteLLM. No prompts, no traces, no replay. Spend attribution only.
+No prompts, no traces, no replay. Spend attribution only.
 
 Requires Ruby 3.3+, Rails 8.0+, PostgreSQL or MySQL. Built for a Rails monolith, not multiple services.
 
@@ -12,7 +12,7 @@ Requires Ruby 3.3+, Rails 8.0+, PostgreSQL or MySQL. Built for a Rails monolith,
 
 ## Quickstart
 
-Shown with RubyLLM; the flow is identical for the official OpenAI and Anthropic SDKs — swap the gem and the `instrument` name (see the [cookbook](docs/cookbook.md)).
+Shown with RubyLLM; the flow is identical for the official OpenAI and Anthropic SDKs: swap the gem and the `instrument` name (see the [cookbook](docs/cookbook.md)).
 
 ```ruby
 # Gemfile
@@ -24,7 +24,7 @@ gem "ruby_llm"
 bin/rails llm_cost_tracker:setup
 ```
 
-Runs the install generator, drops a price snapshot, migrates the database, and verifies via `llm_cost_tracker:doctor`. Then enable the integration in the generated `config/initializers/llm_cost_tracker.rb`:
+Runs the install generator, writes a local price file, migrates the database, and verifies via `llm_cost_tracker:doctor`. Then enable the integration in the generated `config/initializers/llm_cost_tracker.rb`:
 
 ```ruby
 LlmCostTracker.configure do |config|
@@ -33,7 +33,7 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-Your RubyLLM calls stay unchanged — every chat, embedding, transcription, image, and moderation call now lands in the ledger. Tag them to attribute spend:
+Your RubyLLM calls stay unchanged, and every chat, embedding, transcription, image, and moderation call now lands in the ledger. Tag them to attribute spend:
 
 ```ruby
 LlmCostTracker.with_tags(user_id: Current.user&.id, feature: "chat") do
@@ -52,9 +52,9 @@ end
 ## What it records
 
 - **Calls.** Provider, model, total tokens, total cost, latency, status.
-- **Line items.** Per-component breakdown — text/audio/cached tokens, tool charges (web search, grounding, container sessions).
-- **Tags.** Whatever attribution you pass — user, feature, tenant, env.
-- **Provider IDs.** Response, plus project, API key and workspace when you pass them to `track` or `track_stream` — for downstream audits.
+- **Line items.** Per-component breakdown: text/audio/cached tokens, tool charges (web search, grounding, container sessions).
+- **Tags.** Whatever attribution you pass: user, feature, tenant, env.
+- **Provider IDs.** Response, plus project, API key and workspace when you pass them to `track` or `track_stream`, for downstream audits.
 - **Pricing snapshot.** So historical numbers don't drift when prices change.
 
 ## Budgets
@@ -82,7 +82,7 @@ Captured does not always mean priced:
 | Cost comes from | Calls |
 | --- | --- |
 | The billed amount in the response or final stream chunk: `usage.cost`, xAI's `usage.cost_in_usd_ticks`, or Perplexity's `usage.cost.total_cost` | OpenRouter, xAI, Perplexity, and other OpenAI-compatible gateways that return one (through RubyLLM 1.x, OpenRouter, xAI, and Perplexity chats only) |
-| Bundled [`prices.json`](lib/llm_cost_tracker/prices.json) | The OpenAI, Anthropic, Gemini, Groq, OpenRouter, xAI, Mistral, DeepSeek, and Cohere models it lists, DeepSeek at its off-peak rates in its off-peak hours, and the same Claude models on Bedrock through RubyLLM |
+| Bundled [`prices.json`](lib/llm_cost_tracker/prices.json), read from each provider's own pricing page or API | The OpenAI, Anthropic, Gemini, Groq, OpenRouter, xAI, Mistral, DeepSeek, and Cohere models it lists, DeepSeek at its off-peak rates in its off-peak hours, and the same Claude models on Bedrock through RubyLLM |
 | The OpenAI, Anthropic, or Gemini price for the same model name | Azure OpenAI (by the model in the response, not the deployment name), Vertex AI through RubyLLM, gateways that pass a listed model name through |
 | Nothing: recorded with `cost_status: unknown` | Perplexity without a billed amount (its Router) when no price lists its model, calls through the official OpenAI SDK's Bedrock provider, and through RubyLLM also Ollama, Cohere models without a bundled price (such as Command A+, Embed 4, and Rerank 3.5), other Bedrock models, and Claude on GovCloud (`us-gov.` profiles) |
 
@@ -127,4 +127,4 @@ bin/check
 
 ## License
 
-MIT — see [LICENSE.txt](LICENSE.txt).
+MIT. See [LICENSE.txt](LICENSE.txt).

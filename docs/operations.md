@@ -28,13 +28,13 @@ When `ingestion.mode = :async` is on, a single app process can need more than it
 
 ## Ingestion Path
 
-By default `Tracker.record` writes events synchronously through `LlmCostTracker::Ledger::Store.insert` straight into the ledger (`llm_cost_tracker_calls` + line items + tags) — no inbox, no worker, nothing to drain.
+By default `Tracker.record` writes events synchronously through `LlmCostTracker::Ledger::Store.insert` straight into the ledger (`llm_cost_tracker_calls` + line items + tags), with no inbox, no worker, and nothing to drain.
 
 Flip `config.ingestion.mode = :async` (after running `bin/rails generate llm_cost_tracker:async_ingestion`) when you need:
 
-- Multi-process safe staging — a crashed app worker leaves rows in the inbox that another process can pick up via the database lease.
-- Insulation from caller transaction rollbacks — staged events survive `ActiveRecord::Rollback`.
-- Batched inserts — the worker drains rows into `llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`, and `llm_cost_tracker_call_tags` in one transaction per batch. Each write wakes the writing process's ingestor so the ledger stays fresh, so at low call rates a batch is often a single row; under load the rows that wait while it works drain together. With `config.budgets.totals_source = :cache` the rollup cache is incremented after that transaction commits — a rollup failure is logged and never fails the batch; `bin/rails llm_cost_tracker:rebuild_rollups` recovers the cache.
+- Multi-process safe staging: a crashed app worker leaves rows in the inbox that another process can pick up via the database lease.
+- Insulation from caller transaction rollbacks: staged events survive `ActiveRecord::Rollback`.
+- Batched inserts: the worker drains rows into `llm_cost_tracker_calls`, `llm_cost_tracker_call_line_items`, and `llm_cost_tracker_call_tags` in one transaction per batch. Each write wakes the writing process's ingestor so the ledger stays fresh, so at low call rates a batch is often a single row; under load the rows that wait while it works drain together. With `config.budgets.totals_source = :cache` the rollup cache is incremented after that transaction commits. A rollup failure is logged and never fails the batch; `bin/rails llm_cost_tracker:rebuild_rollups` recovers the cache.
 
 If a batch write fails, the worker retries its rows one at a time and marks only the rejected ones failed; a transient error such as a deadlock or lock timeout stops the drain without counting toward quarantine. A row that fails five times is quarantined: it stays in the inbox but is no longer claimed or counted in budget totals. After fixing the cause, requeue quarantined rows with `LlmCostTracker::Ingestion::InboxEntry.quarantined.update_all(attempts: 0, last_error: nil, locked_at: nil, locked_by: nil)`.
 
@@ -47,7 +47,7 @@ LlmCostTracker::Ingestion::Worker.shutdown!(timeout: 5, drain: true)
 
 The default process `at_exit` hook stops the local ingestor without forcing every exiting process to drain the shared inbox. Rows stay in the database until another process's ingestor claims them. A process starts its ingestor on its first async `Tracker.record`, not at boot, so after a restart, or when only short-lived processes record, rows wait for the next tracked call. Use `flush!` or `shutdown!(drain: true)` when a job or release step must wait for the ledger to catch up. Both return `false` when the wait times out, which is logged, or quarantined rows remain.
 
-`shutdown!` is one-way for the calling process: subsequent `Tracker.record` calls still enqueue to the inbox (so events aren't lost), but the local worker thread won't respawn — another process's ingestor picks them up once that process has recorded a call. Don't call `shutdown!` mid-process unless you intend that contract.
+`shutdown!` is one-way for the calling process: subsequent `Tracker.record` calls still enqueue to the inbox (so events aren't lost), but the local worker thread won't respawn; another process's ingestor picks them up once that process has recorded a call. Don't call `shutdown!` mid-process unless you intend that contract.
 
 ## Ruby Concurrency
 
@@ -62,7 +62,7 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion.mode = :inline`) surface as `:warn`, as do quarantined inbox rows, SDK classes an enabled integration cannot find in the installed SDK, and, in inline mode, inbox rows that never reached the ledger. The ingestion worker also logs each row to `Rails.logger` when it is quarantined — nothing runs `doctor` while the app serves traffic, so that signal must reach the host's own logger.
+`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion.mode = :inline`) surface as `:warn`, as do quarantined inbox rows, SDK classes an enabled integration cannot find in the installed SDK, and, in inline mode, inbox rows that never reached the ledger. The ingestion worker also logs each row to `Rails.logger` when it is quarantined; nothing runs `doctor` while the app serves traffic, so that signal must reach the host's own logger.
 
 `verify_capture` records a synthetic event and verifies both notifications and ActiveRecord persistence.
 
@@ -80,7 +80,7 @@ Optional batch size:
 DAYS=90 BATCH_SIZE=500 bin/rails llm_cost_tracker:prune
 ```
 
-Pruning deletes old `llm_cost_tracker_calls`, then makes a second pass over `llm_cost_tracker_ingestion_inbox_entries` with the same cutoff, so a stale inbox row cannot drain into a period you already pruned. Any pending row it deletes never reached the ledger and is spend you lose, so the task logs their count and cost — drain the inbox before pruning. Quarantined rows past the cutoff are deleted without that warning. Dependent line items and tags are removed by the database via `on_delete: :cascade`. When `config.budgets.totals_source = :cache`, affected daily/monthly call rollups are decremented in the same transaction. Budgets read the remaining calls, so a pruned call stops counting toward every window it fell in: keep `DAYS` at 31 or more while a monthly budget is set, and longer than a run lasts while a per-tag `total` limit is.
+Pruning deletes old `llm_cost_tracker_calls`, then makes a second pass over `llm_cost_tracker_ingestion_inbox_entries` with the same cutoff, so a stale inbox row cannot drain into a period you already pruned. Any pending row it deletes never reached the ledger and is spend you lose, so the task logs their count and cost. Drain the inbox before pruning. Quarantined rows past the cutoff are deleted without that warning. Dependent line items and tags are removed by the database via `on_delete: :cascade`. When `config.budgets.totals_source = :cache`, affected daily/monthly call rollups are decremented in the same transaction. Budgets read the remaining calls, so a pruned call stops counting toward every window it fell in: keep `DAYS` at 31 or more while a monthly budget is set, and longer than a run lasts while a per-tag `total` limit is.
 
 ## Data Shape
 

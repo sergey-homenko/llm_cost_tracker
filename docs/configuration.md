@@ -1,6 +1,6 @@
 # Configuration
 
-Configuration is the contract between your app and the gem — capture, attribution, pricing, budgets, SDK instrumentation. Set it up once at boot:
+Configuration is the contract between your app and the gem: capture, attribution, pricing, budgets, SDK instrumentation. Set it up once at boot:
 
 ```ruby
 LlmCostTracker.configure do |config|
@@ -12,7 +12,7 @@ end
 
 `configure` finalizes shared mutable settings. Runtime attempts to replace or mutate finalized shared config raise instead of silently changing tracking behavior mid-request.
 
-Related options are grouped into namespaces — `budgets`, `capture`, `tags`, `pricing`, `ingestion`. The flat names that predate them still work and now emit a deprecation warning naming their replacement; they are removed in 1.0.
+Related options are grouped into namespaces: `budgets`, `capture`, `tags`, `pricing`, `ingestion`. The flat names that predate them still work and now emit a deprecation warning naming their replacement; they are removed in 1.0.
 
 ## Core Options
 
@@ -46,7 +46,7 @@ LlmCostTracker.configure do |config|
 end
 ```
 
-`config.instrument :all` enables every built-in integration. The SDK gem must already be loaded, satisfy the minimum supported version, and expose the expected resource classes and methods, or `install!` raises. Unknown integration names (typos like `:gemnii`) are accepted at config time and logged once via `Logging.warn` at install time — they don't crash boot, but the dashboard stays empty for that name.
+`config.instrument :all` enables every built-in integration. The SDK gem must already be loaded, satisfy the minimum supported version, and expose the expected resource classes and methods, or `install!` raises. Unknown integration names (typos like `:gemnii`) are accepted at config time and logged once via `Logging.warn` at install time; they don't crash boot, but the dashboard stays empty for that name.
 
 Built-in integration names:
 
@@ -88,7 +88,7 @@ This turns on Faraday capture for the host and sets its provider name, nothing e
 
 ## Azure OpenAI Service
 
-Azure OpenAI capture is built in — no configuration required. The Faraday middleware matches URLs on `{resource}.openai.azure.com`, and Foundry's `{resource}.services.ai.azure.com` or `{resource}.cognitiveservices.azure.com`, both on the classic `/openai/deployments/{deployment-id}/{operation}` path and the v1 `/openai/v1/{operation}` path, across chat/completions, completions, embeddings, responses, moderations, audio/transcriptions, audio/translations, audio/speech, images/generations, images/edits, and images/variations. Responses parse with the same shape as OpenAI direct and tag calls with `provider: "azure_openai"`. The OpenAI Ruby SDK is also covered: if `OpenAI::Client.new` is initialized with an Azure `base_url`, SDK-side capture in `record_response` detects the Azure host and tags the same way.
+Azure OpenAI capture is built in, with no configuration required. The Faraday middleware matches URLs on `{resource}.openai.azure.com`, and Foundry's `{resource}.services.ai.azure.com` or `{resource}.cognitiveservices.azure.com`, both on the classic `/openai/deployments/{deployment-id}/{operation}` path and the v1 `/openai/v1/{operation}` path, across chat/completions, completions, embeddings, responses, moderations, audio/transcriptions, audio/translations, audio/speech, images/generations, images/edits, and images/variations. Responses parse with the same shape as OpenAI direct and tag calls with `provider: "azure_openai"`. The OpenAI Ruby SDK is also covered: if `OpenAI::Client.new` is initialized with an Azure `base_url`, SDK-side capture in `record_response` detects the Azure host and tags the same way.
 
 Pricing for `azure_openai/<model>` resolves through the `unique_providerless_model` match strategy in `Pricing::Matcher` to the matching `openai/<model>` entry in the bundled price snapshot. That's correct for Global-tier deployments in primary regions where Azure prices match OpenAI direct. Requests and responses do not say which deployment type served them, so Data Zone and regional deployments, which Azure bills above Global, are priced at the Global rate too. To price them at your deployment's Azure rates, override the model in `config.pricing.overrides` with the `azure_openai/<model>` prefix. An override replaces the whole bundled entry, so list every rate your calls use: `cache_read_input` (Azure caches prompts by default), and `batch_input` / `batch_output` if you use the Batch API. A rate left out prices as unknown.
 
@@ -136,7 +136,7 @@ Two options decide which optional tables the gem touches. Both default to the no
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `ingestion.mode` | `:inline` | When `:async`, `Tracker.record` writes a write-ahead row to `llm_cost_tracker_ingestion_inbox_entries`; a background worker drains rows into the ledger. Survives caller transaction rollbacks and batches inserts. When `:inline` (default), events write inline from the request thread. |
-| `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool that inbox writes use. Those writes happen on the request thread inside `Tracker.record`, on a connection kept out of the app's pool so a staged event survives a caller rollback and a busy app doesn't deadlock its own tracking. The drain worker does not use this pool — it checks out an ordinary connection. The pool is per process; bump it if concurrent `Tracker.record` calls in one process (e.g. Puma threads) outgrow the default. Ignored when `ingestion.mode = :inline`. |
+| `ingestion.pool_size` | `2` | Size of the dedicated ActiveRecord connection pool that inbox writes use. Those writes happen on the request thread inside `Tracker.record`, on a connection kept out of the app's pool so a staged event survives a caller rollback and a busy app doesn't deadlock its own tracking. The drain worker does not use this pool; it checks out an ordinary connection. The pool is per process; bump it if concurrent `Tracker.record` calls in one process (e.g. Puma threads) outgrow the default. Ignored when `ingestion.mode = :inline`. |
 | `budgets.totals_source` | `:ledger` | Where budget checks read the period spend from. `:ledger` (default) sums `llm_cost_tracker_calls` on every check. `:cache` keeps running totals in `llm_cost_tracker_call_rollups` and reads a monthly total as the month's finished days from that table plus a live sum of today's calls. It adds a write on every recorded call, needs the `llm_cost_tracker_call_rollups` table, and counts only calls recorded while `:cache` is on: once it is deployed, run `bin/rails llm_cost_tracker:rebuild_rollups`, and again after a logged rollup failure. Only budget checks and the dashboard budget widget read those totals; with no budget configured it is pure overhead. |
 
 Each opt-in needs a matching generator before flipping the flag:

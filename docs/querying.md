@@ -1,6 +1,6 @@
 # Querying and Reports
 
-Calls in the ledger are ordinary ActiveRecord rows — query them from a console, a scheduled job, an admin UI, or the mounted dashboard.
+Calls in the ledger are ordinary ActiveRecord rows: query them from a console, a scheduled job, an admin UI, or the mounted dashboard.
 
 ## Common Scopes
 

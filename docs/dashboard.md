@@ -1,6 +1,6 @@
 # Dashboard
 
-The dashboard is an optional page for reviewing spend, attribution, and data quality — the engine always loads, mounting its route is what turns it on. Server-rendered ERB, no JavaScript bundle, reads straight from your ledger tables.
+The dashboard is an optional page for reviewing spend, attribution, and data quality. The engine always loads; mounting its route is what turns it on. Server-rendered ERB, no JavaScript bundle, reads straight from your ledger tables.
 
 ## Mounting
 
@@ -10,7 +10,7 @@ Fresh installs can run setup:
 bin/rails llm_cost_tracker:setup
 ```
 
-If the gem is already installed, the dashboard needs no migration and no generator — mount the route and you are done. `--dashboard` only prints the mounting reminder below, and re-running the installer over an existing migration aborts unless you pass `--skip`:
+If the gem is already installed, the dashboard needs no migration and no generator: mount the route and you are done. `--dashboard` only prints the mounting reminder below, and re-running the installer over an existing migration aborts unless you pass `--skip`:
 
 ```bash
 bin/rails generate llm_cost_tracker:install --dashboard --skip
@@ -47,7 +47,7 @@ The dashboard reads:
 | Calls | `/calls` | Filterable ledger, call details, CSV export of the first 10,000 matching calls in the page's order |
 | Tags | `/tags` and `/tags/:key` | Tag key explorer and tag value breakdowns |
 | Data Quality | `/data_quality` | Incomplete pricing, partial costs, missing latency, incomplete streams, tool/runtime charge coverage, budgeted tags no call carries |
-| Pricing | `/pricing` | Per-model rates as separate tabs — Overrides, Custom file, Bundled; the active source (first non-empty in priority order) is highlighted, with last-updated date and currency next to the row count. |
+| Pricing | `/pricing` | Per-model rates as separate tabs (Overrides, Custom file, Bundled); the active source (first non-empty in priority order) is highlighted, with last-updated date and currency next to the row count. |
 
 ## Filters
 
