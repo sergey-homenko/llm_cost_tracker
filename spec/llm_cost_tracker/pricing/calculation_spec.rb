@@ -76,6 +76,7 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
       LlmCostTracker.configure do |c|
         c.pricing.overrides = {
           "mistral/voxtral-mini-latest" => { "transcription_minute" => 0.003 },
+          "mistral/voxtral-small-latest" => { "input" => 0.1, "output" => 0.3, "transcription_minute" => 0.004 },
           "groq/whisper-large-v3" => { "transcription_minute" => 0.00185, "_minimum_billed_seconds" => 10 }
         }
       end
@@ -95,6 +96,12 @@ RSpec.describe LlmCostTracker::Pricing::Calculation do
       expect(priced).to have_attributes(cost_status: "complete")
       expect(priced.cost.total.round(8)).to eq(BigDecimal("0.01015"))
       expect(priced.priced_line_items.map(&:kind)).to eq(["transcription_minute"])
+    end
+
+    it "bills both the tokens and the minutes when the model also has token rates" do
+      priced = calculation("mistral/voxtral-small-latest", { input_tokens: 1_000_000, output_tokens: 100_000 }, [minutes(120)])
+
+      expect(priced.cost.total).to eq(BigDecimal("0.138"))
     end
 
     it "leaves tokens unknown when the call carries no unit the model is priced by" do
