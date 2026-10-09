@@ -85,6 +85,14 @@ RSpec.describe LlmCostTracker::Configuration do
       expect(config.budgets.daily).to eq(BigDecimal("50"))
     end
 
+    it "keeps a numeric limit as given" do
+      config.budgets.monthly = 100
+      config.budgets.daily = 25.5
+
+      expect(config.budgets.monthly).to be_an(Integer).and eq(100)
+      expect(config.budgets.daily).to be_a(Float).and eq(25.5)
+    end
+
     it "turns a limit off when given nil, such as an unset ENV value" do
       config.budgets.daily = "50"
       config.budgets.daily = nil

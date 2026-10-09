@@ -22,7 +22,8 @@ module LlmCostTracker
       LIMITS.each do |name|
         define_method(:"#{name}=") do |value|
           ensure_mutable!
-          instance_variable_set(:"@#{name}", value.nil? ? nil : validated_amount("budgets.#{name}", value, minimum: 0))
+          amount = validated_amount("budgets.#{name}", value, minimum: 0) unless value.nil?
+          instance_variable_set(:"@#{name}", value.is_a?(Numeric) ? value : amount)
         end
       end
 
