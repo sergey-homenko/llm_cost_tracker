@@ -39,6 +39,18 @@ module LlmCostTracker
       def wrap_iterator(iterator)
         relayed = Enumerator.new { |yielder| relay(iterator.method(:each)) { |event| yielder << event } }
         @stream.instance_variable_set(:@iterator, relayed)
+        close_through(iterator) if @stream.respond_to?(:close)
+      end
+
+      def close_through(iterator)
+        close = @stream.method(:close)
+        finish = method(:finish!)
+        @stream.define_singleton_method(:close) do
+          @iterator = iterator
+          close.call
+        ensure
+          finish.call(errored: false)
+        end
       end
 
       def wrap_each

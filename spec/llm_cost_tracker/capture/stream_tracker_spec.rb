@@ -2,6 +2,7 @@
 
 require "spec_helper"
 require "weakref"
+require "openai"
 require "llm_cost_tracker/capture/stream_collector"
 require "llm_cost_tracker/capture/stream_tracker"
 
@@ -27,6 +28,23 @@ RSpec.describe LlmCostTracker::Capture::StreamTracker do
 
     expect(refs.count(&:weakref_alive?)).to be < 5
     expect(collector).to have_received(:finish!).with(errored: false).exactly(20).times
+  end
+
+  it "closes the SDK's own iterator and finishes once when the caller closes a wrapped stream" do
+    closed = []
+    sdk_stream = Class.new do
+      include OpenAI::Internal::Type::BaseStream
+
+      def initialize(iterator) = @iterator = iterator
+    end
+    iterator = OpenAI::Internal::Util.fused_enum(Enumerator.new { |y| y << { "id" => "c1" } }) { closed << :closed }
+    collector = instance_double(LlmCostTracker::Capture::StreamCollector, event: nil, finish!: nil)
+    stream = described_class.new(stream: sdk_stream.new(iterator), collector: collector, active: -> { true }).wrap
+
+    stream.close
+
+    expect(closed).to eq([:closed])
+    expect(collector).to have_received(:finish!).with(errored: false).once
   end
 
   it "finishes again on the next iteration when the previous finish raised" do

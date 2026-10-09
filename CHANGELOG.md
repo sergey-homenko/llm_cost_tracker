@@ -92,6 +92,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Claude calls on Vertex AI under a versioned model id, such as `claude-sonnet-4-5@20250929`, are priced instead of recorded with unknown cost.
 - Calls made under a read-only database role, such as a GET request with Rails' automatic role switching, are recorded through the writing role instead of lost, and the async inbox no longer binds to a replica; budget reads use the writing role too.
 - A stream event spanning many network reads, such as a streamed image through Faraday, is parsed in linear instead of quadratic time.
+- `close` on an official openai or anthropic SDK stream closes its HTTP response and records the call, instead of leaving the openai connection open and unrecorded.
 
 ## [0.14.2] - 2026-09-28
 
