@@ -276,19 +276,22 @@ RSpec.describe "ActiveRecord async inbox" do
     expect(LlmCostTracker::Logging).to have_received(:warn).with(include("Rollup increment failed"))
   end
 
-  it "does not advance attempts on a transient persist failure so an infra blip never quarantines good cost data" do
-    LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 })
-    allow(LlmCostTracker::Logging).to receive(:warn)
-    allow(LlmCostTracker::Ledger::Store).to receive(:persist_records).and_raise(ActiveRecord::Deadlocked.new("deadlock detected"))
+  [ActiveRecord::Deadlocked, ActiveRecord::QueryCanceled, ActiveRecord::ConnectionFailed].each do |error|
+    it "does not advance attempts on a transient #{error.name.demodulize} so an infra blip never quarantines good " \
+       "cost data" do
+      LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000, output_tokens: 0 })
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      allow(LlmCostTracker::Ledger::Store).to receive(:persist_records).and_raise(error.new("transient"))
 
-    LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)
+      LlmCostTracker::Ingestion::Worker.ingest_once(require_lease: false)
 
-    row = LlmCostTracker::Ingestion::InboxEntry.first
-    expect(row.attempts).to eq(0)
-    expect(row.locked_by).to be_nil
-    expect(row.last_error).to include("Deadlocked")
+      row = LlmCostTracker::Ingestion::InboxEntry.first
+      expect(row.attempts).to eq(0)
+      expect(row.locked_by).to be_nil
+      expect(row.last_error).to include(error.name.demodulize)
 
-    LlmCostTracker::Ingestion::InboxEntry.delete_all
+      LlmCostTracker::Ingestion::InboxEntry.delete_all
+    end
   end
 
   it "advances attempts on a non-transient persist failure so genuinely bad rows still progress toward quarantine" do

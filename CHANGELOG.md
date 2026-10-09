@@ -94,6 +94,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A stream event spanning many network reads, such as a streamed image through Faraday, is parsed in linear instead of quadratic time.
 - `close` on an official openai or anthropic SDK stream closes its HTTP response and records the call, instead of leaving the openai connection open and unrecorded.
 - `track_stream` records the call when its block leaves with `return`, `break` or `throw`; it was not recorded.
+- The async ingestor treats a statement timeout, a cancelled query or a dropped connection as transient, so a slow or locked ledger no longer quarantines good inbox rows.
 - On MySQL, concurrent calls for different providers under `totals_source: :cache` no longer deadlock on the rollup upsert and lose increments; rollup rows are written one per statement in a fixed order.
 - The Faraday middleware reads a multipart request's model only from a part starting at the request's boundary, so an uploaded file that contains a `model` field can no longer change the recorded model.
 - `prices:refresh` keeps `pricing.file` entries for models the bundled prices do not list, such as fine-tuned models, instead of deleting them unless marked `"_source": "manual"`, and its change list no longer shows kept entries as removed.
