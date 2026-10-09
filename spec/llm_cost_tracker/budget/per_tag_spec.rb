@@ -340,6 +340,21 @@ RSpec.describe LlmCostTracker::Budget::PerTag do
 
       expect(LlmCostTracker::Logging).to have_received(:warn).with(/total_cost \/ tracked_at/).once
     end
+
+    it "lets a call through and records it when a blocking rule cannot be read" do
+      LlmCostTracker.configuration.ingestion.mode = :inline
+      LlmCostTracker.configuration.budgets.exceeded_behavior = :block_requests
+      LlmCostTracker.configuration.budgets.per_tag = { tenant_id: { monthly: 5 } }
+      allow(LlmCostTracker::Logging).to receive(:warn)
+
+      expect do
+        LlmCostTracker.track(provider: "openai", model: "gpt-4o", tokens: { input_tokens: 10, output_tokens: 5 },
+                             tags: { tenant_id: 42 }, enforce_budget: true)
+        LlmCostTracker::Budget.enforce!(provider: "openai", model: "gpt-4o", request: { "input" => "x" },
+                                        tags: { tenant_id: 42 })
+      end.not_to raise_error
+      expect(LlmCostTracker::Call.count).to eq(1)
+    end
   end
 
   describe "the inline default" do
