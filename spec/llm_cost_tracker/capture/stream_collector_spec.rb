@@ -199,6 +199,25 @@ RSpec.describe LlmCostTracker do
       expect(collected.first[:tags]).to include(feature: "stream")
     end
 
+    it "records a stream whose block leaves with return, break or throw" do
+      collected = events
+      leave = lambda do |how|
+        described_class.track_stream(provider: "openai", model: "gpt-4o") do |stream|
+          stream.usage(input_tokens: 12, output_tokens: 3)
+          return if how == :return
+          break if how == :break
+
+          throw :leave
+        end
+      end
+
+      leave.call(:return)
+      leave.call(:break)
+      catch(:leave) { leave.call(:throw) }
+
+      expect(collected.map { |event| event.dig(:token_usage, :input_tokens) }).to eq([12, 12, 12])
+    end
+
     it "infers the model from stream events when no model is passed" do
       collected = events
 
