@@ -281,6 +281,20 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(LlmCostTracker::Logging).to have_received(:warn).with(include("tags.default proc raised"))
     end
 
+    it "records no default tags, without a warning, when the tags.default proc returns false" do
+      allow(LlmCostTracker::Logging).to receive(:warn)
+      LlmCostTracker.configure { |c| c.tags.default = -> { false } }
+
+      event = record(
+        provider: "openai",
+        model: "gpt-4o",
+        token_usage: LlmCostTracker::Usage::TokenUsage.build(input_tokens: 1, output_tokens: 1)
+      )
+
+      expect(event.tags).to eq({})
+      expect(LlmCostTracker::Logging).not_to have_received(:warn)
+    end
+
     it "merges scoped tags between default tags and explicit metadata" do
       LlmCostTracker.configure do |c|
         c.tags.default = { env: "test", feature: "default" }
