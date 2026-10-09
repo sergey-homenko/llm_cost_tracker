@@ -107,6 +107,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The Faraday middleware keeps `with_tags` and `tags.default` tags on a call when its own `tags:` proc raises; it dropped them all.
 - A `tags.default` proc that returns `nil` or `false` adds no tags; `false` failed SDK streams before the request and dropped blocking calls.
 - Usage that reports only `total_tokens`, with no input or output split, is recorded as `cost_status: unknown` on a priced model instead of `free` at $0.
+- `prices:check` and `prices:refresh` print changed rates as plain decimals instead of forms like `0.375e1`.
 
 ## [0.14.2] - 2026-09-28
 
