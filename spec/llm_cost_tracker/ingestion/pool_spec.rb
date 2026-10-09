@@ -39,6 +39,21 @@ RSpec.describe LlmCostTracker::Ingestion::Pool do
     expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(1)
   end
 
+  it "builds the pool from the writing role when the first inbox write happens under the reading role" do
+    primary = LlmCostTrackerDatabase.config
+    ActiveRecord::Base.connects_to(database: { writing: primary, reading: primary.merge(replica: true) })
+    track = -> { LlmCostTracker.track(provider: :openai, model: "gpt-4o", tokens: { input_tokens: 1_000 }) }
+
+    ActiveRecord::Base.connected_to(role: :reading) { track.call }
+    track.call
+
+    expect(described_class.pool.db_config.configuration_hash).not_to include(:replica)
+    expect(LlmCostTracker::Ingestion::InboxEntry.count).to eq(2)
+  ensure
+    ActiveRecord::Base.connection_handler.remove_connection_pool("ActiveRecord::Base", role: :reading)
+    ActiveRecord::Base.establish_connection(primary)
+  end
+
   it "honors ingestion_pool_size when configured" do
     LlmCostTracker.configuration.ingestion.pool_size = 3
 
