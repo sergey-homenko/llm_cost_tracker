@@ -404,7 +404,7 @@ RSpec.describe "ActiveRecord storage integration" do
   it "preserves the ledger write when the rollup increment raises" do
     LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
     allow(LlmCostTracker::Logging).to receive(:warn)
-    allow(LlmCostTracker::Ledger::Rollups).to receive(:increment!).and_raise("rollup contention")
+    allow(LlmCostTracker::CallRollup).to receive(:increment_all).and_raise("rollup contention")
     event = build_event(event_id: "rollup-failure")
 
     expect { LlmCostTracker::Ledger::Store.insert([event]) }.not_to raise_error
@@ -416,24 +416,46 @@ RSpec.describe "ActiveRecord storage integration" do
     LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
     allow(LlmCostTracker::Logging).to receive(:warn)
     allow(LlmCostTracker::Ledger::Rollups).to receive(:sleep)
-    increment_call_count = 0
-    allow(LlmCostTracker::Ledger::Rollups).to receive(:increment!) do |_events|
-      increment_call_count += 1
-      raise ActiveRecord::Deadlocked if increment_call_count < 3
+    failures = 0
+    allow(LlmCostTracker::CallRollup).to receive(:increment_all).and_wrap_original do |method, rows|
+      raise ActiveRecord::Deadlocked if (failures += 1) < 3
+
+      method.call(rows)
     end
     event = build_event(event_id: "rollup-retry")
 
     LlmCostTracker::Ledger::Store.insert([event])
 
-    expect(increment_call_count).to eq(3)
+    expect(LlmCostTracker::Ledger::Rollups).to have_received(:sleep).twice
+    expect(LlmCostTracker::CallRollup.group(:period).sum(:total_cost).transform_values(&:to_f))
+      .to eq("day" => 0.0025, "month" => 0.0025)
     expect(LlmCostTracker::Logging).not_to have_received(:warn)
+  end
+
+  it "resumes a retried rollup write after the buckets already written, so none is counted twice" do
+    LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
+    allow(LlmCostTracker::Ledger::Rollups).to receive(:sleep)
+    failed = false
+    allow(LlmCostTracker::CallRollup).to receive(:increment_all).and_wrap_original do |method, rows|
+      if !failed && rows.any? { |row| row[:period] == "month" }
+        failed = true
+        raise ActiveRecord::Deadlocked
+      end
+
+      method.call(rows)
+    end
+
+    LlmCostTracker::Ledger::Store.insert([build_event(event_id: "rollup-resume")])
+
+    expect(LlmCostTracker::CallRollup.group(:period).sum(:total_cost).transform_values(&:to_f))
+      .to eq("day" => 0.0025, "month" => 0.0025)
   end
 
   it "does not retry an increment that may already have been applied, so the cache cannot double count" do
     LlmCostTracker.configure { |config| config.budgets.totals_source = :cache }
     allow(LlmCostTracker::Logging).to receive(:warn)
     increment_call_count = 0
-    allow(LlmCostTracker::Ledger::Rollups).to receive(:increment!) do |_events|
+    allow(LlmCostTracker::CallRollup).to receive(:increment_all) do |_rows|
       increment_call_count += 1
       raise ActiveRecord::ConnectionNotEstablished
     end
