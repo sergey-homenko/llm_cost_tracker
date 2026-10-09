@@ -311,12 +311,12 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(total).to eq(0.00265)
   end
 
-  it "updates daily and monthly call rollups in one bulk write" do
+  it "updates daily and monthly call rollups in one sorted bulk write, or one write per bucket on MySQL" do
     allow(Time).to receive(:now).and_return(Time.utc(2026, 4, 18, 12))
-    received_rows = nil
+    writes = []
 
     allow(LlmCostTracker::CallRollup).to receive(:upsert_all).and_wrap_original do |method, rows, **options|
-      received_rows = rows
+      writes << rows.map { |row| row[:period] }
       method.call(rows, **options)
     end
 
@@ -326,8 +326,8 @@ RSpec.describe "ActiveRecord storage integration" do
       tokens: { input_tokens: 1_000, output_tokens: 0 },
     )
 
-    expect(LlmCostTracker::CallRollup).to have_received(:upsert_all).once
-    expect(received_rows.map { |row| row[:period] }).to contain_exactly("month", "day")
+    mysql = LlmCostTracker::Ledger::Schema::Adapter.mysql?(ActiveRecord::Base.connection)
+    expect(writes).to eq(mysql ? [%w[day], %w[month]] : [%w[day month]])
   end
 
   it "keeps the header total_cost in sync with the sum of priced line items" do
