@@ -115,6 +115,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The Calls page shows the CSV export's 10,000-call cap on its export link when more calls match; the cut was silent.
 - `doctor` warns when an enabled SDK integration cannot find one of the SDK classes it patches, such as a renamed resource in a newer SDK, instead of reporting it installed while those calls go unrecorded.
 - The Faraday middleware reads a request body only on LLM URLs, so a Hash body that is not valid JSON, such as binary form data, no longer fails requests to other hosts; an LLM request whose body cannot be read is recorded from its response.
+- A dashboard query that fails, such as on a statement timeout, shows a query failure page, logs the error and reports it through `Rails.error`, instead of asking you to run the install generator; the Tags page no longer shows an empty list when its query fails.
 
 ## [0.14.2] - 2026-09-28
 

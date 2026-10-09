@@ -475,7 +475,7 @@ RSpec.describe "LlmCostTracker::Engine calls" do
 
     expect(response.status).to eq(500)
     expect(response.headers["Content-Type"]).to include("text/html")
-    expect(response.body).to include("Database unavailable")
+    expect(response.body).to include("Query failed")
   end
 
   it "treats a NUL byte in a tag filter value as matching nothing on PostgreSQL" do

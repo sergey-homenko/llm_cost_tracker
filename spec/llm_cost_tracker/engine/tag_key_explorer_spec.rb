@@ -18,6 +18,19 @@ RSpec.describe "LlmCostTracker::Engine tag key explorer" do
     expect(response.body).to include("No tag keys found")
   end
 
+  it "renders the query failure page and reports the error when the tag key query fails" do
+    allow(LlmCostTracker::Call).to receive(:find_by_sql)
+      .and_raise(ActiveRecord::QueryCanceled, "canceling statement due to statement timeout")
+    allow(Rails.error).to receive(:report)
+
+    response = get("/llm-costs/tags")
+
+    expect(response.status).to eq(500)
+    expect(response.body).to include("Query failed")
+    expect(response.body).not_to include("rails generate llm_cost_tracker:install")
+    expect(Rails.error).to have_received(:report).with(an_instance_of(ActiveRecord::QueryCanceled), handled: true)
+  end
+
   it "renders tag keys discovered from call data" do
     create_call(tags: { env: "prod", feature: "chat" })
     create_call(tags: { env: "staging" })
