@@ -62,7 +62,7 @@ bin/rails llm_cost_tracker:doctor
 bin/rails llm_cost_tracker:verify_capture
 ```
 
-`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion.mode = :inline`) surface as `:warn`, as do quarantined inbox rows and, in inline mode, inbox rows that never reached the ledger. The ingestion worker also logs each row to `Rails.logger` when it is quarantined — nothing runs `doctor` while the app serves traffic, so that signal must reach the host's own logger.
+`doctor` is an install- and deploy-time check. It checks current schema (calls, line items, tags), the optional inbox/leases/rollups tables that match your config flags, stale prices, and integration setup. Mismatches between config flags and present tables (e.g. inbox table exists but `ingestion.mode = :inline`) surface as `:warn`, as do quarantined inbox rows, SDK classes an enabled integration cannot find in the installed SDK, and, in inline mode, inbox rows that never reached the ledger. The ingestion worker also logs each row to `Rails.logger` when it is quarantined — nothing runs `doctor` while the app serves traffic, so that signal must reach the host's own logger.
 
 `verify_capture` records a synthetic event and verifies both notifications and ActiveRecord persistence.
 
