@@ -67,7 +67,8 @@ module LlmCostTracker
       end
 
       def unpriced_tokens?(event, calculation, lines)
-        calculation.token_cost.nil? && event.token_usage.total_tokens.positive? && lines.none?(&:priced?)
+        calculation.token_cost.nil? && event.token_usage.total_tokens.positive? && lines.none?(&:priced?) &&
+          !calculation.unsplit_total?
       end
 
       def notify_subscribers(event)

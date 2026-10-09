@@ -100,6 +100,13 @@ module LlmCostTracker
         end
       end
 
+      def unsplit_total?
+        return false unless match && @token_usage.total_tokens.to_i.positive?
+
+        @token_usage.priced_quantities.values.none?(&:positive?) &&
+          match.prices.values_at("input", "output").any? { |rate| rate.to_f.positive? }
+      end
+
       private
 
       def off_peak?
@@ -133,11 +140,6 @@ module LlmCostTracker
 
       def billed_line
         @line_items.find { |line_item| line_item.kind == "billed_request" }
-      end
-
-      def unsplit_total?
-        @token_usage.total_tokens.to_i.positive? && @token_usage.priced_quantities.values.none?(&:positive?) &&
-          match.prices.values_at("input", "output").any? { |rate| rate.to_f.positive? }
       end
 
       def all_billable_unpriced?

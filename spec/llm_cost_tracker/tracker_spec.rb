@@ -295,6 +295,17 @@ RSpec.describe LlmCostTracker::Tracker do
       expect(LlmCostTracker::Logging).not_to have_received(:warn)
     end
 
+    it "records total-only usage on a priced model as unknown without reporting the model as unpriced" do
+      LlmCostTracker.configure { |c| c.pricing.unknown_model_behavior = :raise }
+      usage = LlmCostTracker::Usage::TokenUsage.build(total_tokens: 500)
+
+      event = record(provider: "openai", model: "gpt-4o", token_usage: usage)
+
+      expect(event).to have_attributes(cost_status: LlmCostTracker::Charges::CostStatus::UNKNOWN, total_cost: nil)
+      expect { record(provider: "openai", model: "no-such-model", token_usage: usage) }
+        .to raise_error(LlmCostTracker::UnknownPricingError)
+    end
+
     it "merges scoped tags between default tags and explicit metadata" do
       LlmCostTracker.configure do |c|
         c.tags.default = { env: "test", feature: "default" }
