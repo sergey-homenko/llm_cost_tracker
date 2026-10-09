@@ -447,7 +447,7 @@ RSpec.describe "ActiveRecord storage integration" do
   it "qualifies PostgreSQL rollup upsert totals" do
     connection = double(adapter_name: "PostgreSQL")
     allow(connection).to receive(:quote_column_name) { |name| %("#{name}") }
-    allow(LlmCostTracker::CallRollup).to receive(:connection).and_return(connection)
+    allow(LlmCostTracker::CallRollup).to receive(:lease_connection).and_return(connection)
     allow(LlmCostTracker::CallRollup)
       .to receive(:quoted_table_name)
       .and_return(%("llm_cost_tracker_call_rollups"))
