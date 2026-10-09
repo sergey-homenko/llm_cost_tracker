@@ -115,7 +115,7 @@ module LlmCostTracker
           nil
         rescue StandardError => e
           Logging.warn("Error processing #{@parser.provider_for(@url)} response for model #{@model || 'unknown'}: " \
-                       "#{e.class}: #{e.message}#{" (#{e.backtrace.first})" if e.backtrace}")
+                       "#{e.class}: #{e.message} (#{Array(e.backtrace).first})")
         end
 
         def record_interruption(error, latency_ms)
