@@ -6,12 +6,12 @@ module LlmCostTracker
   module Ledger
     module Isolation
       class << self
-        def guard(model = LlmCostTracker::Call, &)
-          leased(model) { |connection| isolate(connection, model, &) }
+        def guard(model = LlmCostTracker::Call, &block)
+          leased(model) { |connection| isolate(connection, model, &block) }
         end
 
-        def leased(model = LlmCostTracker::Call, &)
-          writing { model.with_connection(prevent_permanent_checkout: true, &) }
+        def leased(model = LlmCostTracker::Call, &block)
+          writing { model.with_connection(prevent_permanent_checkout: true, &block) }
         end
 
         def writing(&)
