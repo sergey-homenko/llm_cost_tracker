@@ -104,6 +104,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The Faraday middleware reads a multipart request's model only from a part starting at the request's boundary, so an uploaded file that contains a `model` field can no longer change the recorded model.
 - `prices:refresh` and a re-run of the prices generator keep `pricing.file` entries for models the bundled prices do not list, such as fine-tuned models, instead of deleting them unless marked `"_source": "manual"`, and the refresh change list no longer shows kept entries as removed.
 - `budgets.monthly`, `daily` and `per_call` given as a numeric string, such as an `ENV` value, are used as numbers instead of failing every call or never firing; a non-numeric or negative value, or an `on_exceeded` that cannot be called, raises at `configure`.
+- The Faraday middleware keeps `with_tags` and `tags.default` tags on a call when its own `tags:` proc raises; it dropped them all.
 
 ## [0.14.2] - 2026-09-28
 

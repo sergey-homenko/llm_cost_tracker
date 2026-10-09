@@ -129,7 +129,8 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     expect(events.first[:tags]).to include(user_id: 42)
   end
 
-  it "does not break requests when tag snapshot fails" do
+  it "keeps the request, scoped tags and default tags when the middleware tags proc raises" do
+    LlmCostTracker.configure { |config| config.tags.default = { env: "prod" } }
     conn = Faraday.new(url: "https://api.openai.com") do |f|
       f.use :llm_cost_tracker, tags: -> { raise "missing request context" }
       f.adapter :test do |stub|
@@ -145,12 +146,12 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
     end
 
     log = capture_log do
-      response = conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json)
+      response = LlmCostTracker.with_tags(tenant_id: "acme") { conn.post("/v1/chat/completions", { model: "gpt-4o" }.to_json) }
       expect(response.status).to eq(200)
     end
 
     expect(log).to match(/Error resolving request tags: RuntimeError: missing request context/)
-    expect(events.first[:tags]).to eq({})
+    expect(events.first[:tags]).to eq(env: "prod", tenant_id: "acme")
   end
 
   it "passes the Faraday request env to callable tags when accepted" do

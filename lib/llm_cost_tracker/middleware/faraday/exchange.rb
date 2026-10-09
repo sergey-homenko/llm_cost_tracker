@@ -57,10 +57,14 @@ module LlmCostTracker
         def post? = @env.method == :post
 
         def tag_snapshot
-          [LlmCostTracker::Tags::Context.tags, resolved_tags]
+          [tags_or_empty { LlmCostTracker::Tags::Context.tags }, tags_or_empty { resolved_tags }]
+        end
+
+        def tags_or_empty
+          yield
         rescue StandardError => e
           Logging.warn("Error resolving request tags: #{e.class}: #{e.message}")
-          [{}, {}]
+          {}
         end
 
         def resolved_tags
