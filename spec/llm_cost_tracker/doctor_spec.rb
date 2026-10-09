@@ -237,6 +237,17 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("docs/upgrading.md")
     end
 
+    it "fails when per-tag budgets are set but the call tags have no cost columns" do
+      ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_call_tags, :tracked_at)
+      ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_call_tags, :total_cost)
+      LlmCostTracker::CallTag.reset_column_information
+      LlmCostTracker.configuration.budgets.per_tag = { tenant: { daily: 1 } }
+
+      check = described_class.call.find { |item| item.name == "per-tag budgets" }
+
+      expect(check).to have_attributes(status: :error, message: include("upgrade_per_tag_budgets"))
+    end
+
     it "reports recorded calls" do
       create_call(model: "gpt-4o")
 
