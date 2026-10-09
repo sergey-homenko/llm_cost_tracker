@@ -46,6 +46,15 @@ RSpec.describe LlmCostTracker::Providers::Openai::ServiceCharges do
       expect(result.kind).to eq("web_search_preview_request_reasoning")
     end
 
+    it "build_line_item keeps a file_search_call as file search when the request also used the web search preview tool" do
+      result = described_class.build_line_item(
+        { "type" => "file_search_call", "id" => "fs_1" },
+        request: { tools: [{ type: "web_search_preview" }, { type: "file_search" }] },
+        model: "gpt-4o"
+      )
+      expect(result.kind).to eq("file_search_call")
+    end
+
     it "build_line_item keeps the standard web_search_request component when the request did not use the preview tool" do
       result = described_class.build_line_item(
         { "type" => "web_search_call", "id" => "ws_3" },

@@ -109,4 +109,16 @@ RSpec.describe LlmCostTracker::Providers::Anthropic::UsageExtractor do
       expect(described_class.service_line_items(input_tokens: 1, output_tokens: 1)).to eq([])
     end
   end
+
+  describe ".served_model" do
+    it "names the model of the last fallback hop as the one that served the call" do
+      usage = { iterations: [{ type: "message", model: "claude-opus-5", input_tokens: 10, output_tokens: 0 },
+                             { type: "fallback_message", model: "claude-sonnet-4-5", input_tokens: 10, output_tokens: 0 },
+                             { type: "fallback_message", model: "claude-haiku-4-5", input_tokens: 10, output_tokens: 50 }] }
+      content = [{ type: "fallback", to: { model: "claude-sonnet-4-5" } }, { type: "fallback", to: { model: "claude-haiku-4-5" } }]
+
+      expect([described_class.served_model(usage), described_class.served_model({}, content)])
+        .to eq(%w[claude-haiku-4-5 claude-haiku-4-5])
+    end
+  end
 end

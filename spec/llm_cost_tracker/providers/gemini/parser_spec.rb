@@ -575,4 +575,14 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(result.model).to eq("unknown")
     end
   end
+
+  describe "#service_line_items_for" do
+    it "bills no grounding when groundingMetadata holds no search queries, on per-prompt and per-query models" do
+      empty = { "candidates" => [{ "groundingMetadata" => { "webSearchQueries" => [] } },
+                                 { "groundingMetadata" => { "webSearchQueries" => ["  ", ""] } }] }
+      kinds = ->(model) { parser.service_line_items_for(empty, model: model).map(&:kind) }
+
+      expect([kinds.call("gemini-2.5-flash"), kinds.call("gemini-3.8-flash")]).to eq([[], []])
+    end
+  end
 end
