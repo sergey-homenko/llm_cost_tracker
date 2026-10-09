@@ -85,6 +85,13 @@ RSpec.describe LlmCostTracker::Configuration do
       expect(config.budgets.daily).to eq(BigDecimal("50"))
     end
 
+    it "turns a limit off when given nil, such as an unset ENV value" do
+      config.budgets.daily = "50"
+      config.budgets.daily = nil
+
+      expect(config.budgets.daily).to be_nil
+    end
+
     it "rejects a non-numeric or negative limit and a callback that cannot be called" do
       expect { config.budgets.monthly = "lots" }
         .to raise_error(LlmCostTracker::Error, /budgets\.monthly must be a non-negative number/)

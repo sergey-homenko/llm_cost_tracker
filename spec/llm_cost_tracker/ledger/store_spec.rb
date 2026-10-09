@@ -458,6 +458,13 @@ RSpec.describe "ActiveRecord storage integration" do
     expect(sql).to include(%("updated_at" = excluded."updated_at"))
   end
 
+  it "rejects an unsupported adapter for rollup upserts" do
+    allow(LlmCostTracker::CallRollup).to receive(:lease_connection).and_return(double(adapter_name: "SQLite"))
+
+    expect { LlmCostTracker::CallRollup.send(:increment_on_duplicate) }
+      .to raise_error(LlmCostTracker::Error, /Use PostgreSQL or MySQL/)
+  end
+
   it "treats MySQL-family adapters consistently for rollup upserts" do
     %w[Mysql2 Trilogy MariaDB].each do |adapter_name|
       allow(ActiveRecord::Base.connection).to receive(:adapter_name).and_return(adapter_name)

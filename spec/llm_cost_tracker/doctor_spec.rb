@@ -258,6 +258,12 @@ RSpec.describe LlmCostTracker::Doctor do
       expect(check.message).to include("docs/upgrading.md")
     end
 
+    it "does not report per-tag budgets when the call tags have the cost columns" do
+      LlmCostTracker.configuration.budgets.per_tag = { tenant: { daily: 1 } }
+
+      expect(described_class.call.map(&:name)).not_to include("per-tag budgets")
+    end
+
     it "fails when per-tag budgets are set but the call tags have no cost columns" do
       ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_call_tags, :tracked_at)
       ActiveRecord::Base.connection.remove_column(:llm_cost_tracker_call_tags, :total_cost)

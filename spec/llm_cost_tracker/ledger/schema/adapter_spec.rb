@@ -93,6 +93,32 @@ RSpec.describe LlmCostTracker::Ledger::Schema::Adapter do
     end
   end
 
+  describe ".drop_invalid_index" do
+    let(:connection) { ActiveRecord::Base.connection }
+
+    before { establish_database_connection! }
+
+    after do
+      connection.drop_table(:lct_index_probe, if_exists: true)
+      disconnect_database!
+    end
+
+    it "drops an index a failed concurrent build left invalid and keeps a valid one" do
+      skip "PostgreSQL only" unless described_class.postgresql?(connection)
+      connection.create_table(:lct_index_probe) { |t| t.integer :value }
+      connection.execute("INSERT INTO lct_index_probe (value) VALUES (1), (1)")
+      connection.add_index(:lct_index_probe, :id, name: "lct_index_probe_valid")
+      expect { connection.execute("CREATE UNIQUE INDEX CONCURRENTLY lct_index_probe_invalid ON lct_index_probe (value)") }
+        .to raise_error(ActiveRecord::RecordNotUnique)
+
+      described_class.drop_invalid_index(connection, "lct_index_probe_invalid")
+      described_class.drop_invalid_index(connection, "lct_index_probe_valid")
+
+      expect(connection.index_name_exists?(:lct_index_probe, "lct_index_probe_invalid")).to be false
+      expect(connection.index_name_exists?(:lct_index_probe, "lct_index_probe_valid")).to be true
+    end
+  end
+
   def connection_instance(adapter_class, adapter_name)
     Class.new(adapter_class) do
       define_method(:adapter_name) { adapter_name }
