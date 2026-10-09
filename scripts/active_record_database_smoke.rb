@@ -357,7 +357,7 @@ begin
     updated_at: now
   )
   good_event = track!(provider_response_id: "after-poison", feature: "poison")
-  flush!
+  assert("flush reported success with a quarantined row") { !LlmCostTracker::Ingestion::Worker.flush!(timeout: 10) }
   assert("healthy row behind poison was not persisted") do
     LlmCostTracker::Call.where(event_id: good_event.event_id).exists?
   end
@@ -368,6 +368,7 @@ begin
       LlmCostTracker::Ingestion::InboxEntry::MAX_ATTEMPTS_BEFORE_QUARANTINE
     ).exists?
   end
+  LlmCostTracker::Ingestion::InboxEntry.quarantined.delete_all
 
   LlmCostTracker::Ingestion::Worker.shutdown!(drain: false)
   before_count = LlmCostTracker::Call.count
