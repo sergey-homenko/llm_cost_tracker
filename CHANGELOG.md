@@ -2,7 +2,7 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.15.0] - 2026-10-09
 
 ### Added
 
@@ -24,7 +24,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Bundled Groq prices for Whisper, per minute of a `verbose_json` response's `duration` with Groq's 10-second minimum, and Orpheus, per character.
 - Bundled Cohere prices from its pricing page: Command R and R7B, legacy Command models, Aya Expanse, Embed 5, Rerank 4 per 1,000 search units and Parse per 1,000 pages.
 - RubyLLM 2.x Cohere chats and embeddings record billed image tokens at `image_input`, so a call with images is `partial` or `unknown` until a price has that rate.
-- Bundled Mistral and Cohere prices for models their providers' pages omit, when LiteLLM and models.dev agree within 1%, marked `"_source": "litellm"`: Mistral Embed and Cohere Command A.
+- Bundled prices for Mistral Embed and Cohere Command A, which their providers' pages omit, taken from LiteLLM and marked `"_source": "litellm"`.
 - `LICENSE.txt` carries LiteLLM's MIT notice for the bundled prices taken from its data.
 - OpenAI Responses WebSocket mode (`responses.connect`, `OpenAI::Responses::Session` included) is recorded, one call per response that reports usage, and `:block_requests` checks each `response.create` before it is sent.
 
@@ -32,7 +32,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - RubyLLM 2.x is captured from its instrumentation events and documented protocol methods instead of patches to its internals; RubyLLM 1.x keeps the previous integration.
 - RubyLLM 2.x records one row per provider attempt: retries, fallbacks and `pause_turn` segments each get a row, refused or unsent attempts are skipped, and a failed attempt that may have been billed is recorded with unknown cost unless its usage was read.
-- RubyLLM 2.x responses in OpenAI, Anthropic or Gemini format are priced by the Faraday middleware's parsers on any host, Vertex AI included.
+- RubyLLM 2.x responses in OpenAI, Anthropic or Gemini format are priced on any host, Vertex AI included.
 - Under `:block_requests`, a RubyLLM 2.x call is blocked when its RubyLLM event starts; the event's other subscribers then see no finish.
 - On RubyLLM 2.x, an unset `RubyLLM.config.instrumenter` is set to `ActiveSupport::Notifications`; `doctor` warns when it is anything else or a protocol method the integration reads is missing.
 - RubyLLM 2.x Cohere chats record Cohere's billed units instead of token counts that include its unbilled preamble; rows recorded earlier keep the larger counts, so backfilling them overstates their cost.
@@ -43,17 +43,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A transcription or translation without `usage` is priced by its `verbose_json` `duration`, rounded up to whole seconds, through Faraday and the official openai gem, Azure OpenAI Whisper included.
 - `bin/rails llm_cost_tracker:prices:refresh` runs `backfill_unknown_pricing` after writing a new `config.pricing.file`, or prints that command when the calls ledger is not reachable.
 - `backfill_unknown_pricing` and `reprice` store the pricing mode they apply, so a Bedrock regional-profile call recorded before 0.14.2 gets `data_residency`.
-- Bundled xAI prices, OpenAI and Anthropic model ids, OpenAI and Gemini long-context thresholds and OpenAI embedding prices are read from the providers' own pages instead of LiteLLM or hand-kept lists.
 - Bundled prices drop the models Mistral lists as retired, with their aliases such as `magistral-medium-latest`, and any model its provider has stopped listing for 90 days.
 - Vertex AI calls through RubyLLM are priced at the tier their `usageMetadata.trafficType` reports, and Bedrock Converse calls at their `serviceTier`, instead of at standard rates; Provisioned Throughput, Bedrock `reserved` and tiers no bundled price lists become `unknown`, so they no longer count toward money budgets but still count toward `calls` limits, and `provisioned_throughput_*` or `reserved_*` rates in `pricing.overrides` price them.
 - Calls through the official OpenAI SDK's Bedrock provider (`OpenAI::Providers.bedrock`) are recorded as `bedrock` instead of `openai`.
 - `with_tags` tags reach fibers started inside its block, and on RubyLLM 2.1 the tool threads RubyLLM starts, until the block ends; an `ActionController::Live` action's thread keeps them for the whole action, and other threads, such as a thread pool's, get none.
+- The maintained price snapshot requires 0.15.0, so `prices:refresh` and `prices:check` on 0.14.x stop with "remote pricing snapshot requires llm_cost_tracker >= 0.15.0".
 
 ### Fixed
 
 - Anthropic compaction, advisor, fallback and refusal pricing applies to RubyLLM 2.x chats, and each blocking `pause_turn` segment is priced from its own response.
 - RubyLLM 2.x Vertex AI `gemini-embedding-2` embeddings price image, audio and video tokens at their own rates instead of as text.
-- RubyLLM 2.x Bedrock Converse streams split cache writes by their final event's `cacheDetails` instead of `with_caching`'s TTL.
+- RubyLLM 2.x Bedrock Converse streams price cache writes at the cache lifetimes Bedrock reports instead of the one `with_caching` requested.
 - RubyLLM 1.x and 2.x images returned without usage are recorded with unknown cost instead of $0.
 - Gemini Omni Flash, 3.5 Transcribe (Live included) and 2.5 Computer Use calls are priced instead of recorded with unknown cost; Omni video output uses the new `video_output` rate.
 - OpenAI Ultrafast calls (`service_tier: "ultrafast"`) are priced at GPT-6 Astra's Ultrafast rates, US data residency included, instead of recorded with unknown cost.
@@ -100,7 +100,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `Ingestion::Worker.flush!` returns `false` while quarantined inbox rows keep spend out of the ledger and logs when it times out, and `doctor` warns about quarantined rows and, in inline mode, inbox rows that never reached the ledger.
 - On PostgreSQL, re-running an upgrade generator's migration after its concurrent index build was cancelled rebuilds the invalid index instead of keeping it and dropping the working one.
 - The async ingestor treats a statement timeout, a cancelled query or a dropped connection as transient, so a slow or locked ledger no longer quarantines good inbox rows.
-- On MySQL, concurrent calls for different providers under `totals_source: :cache` no longer deadlock on the rollup upsert and lose increments; rollup rows are written one per statement in a fixed order.
+- On MySQL, concurrent calls for different providers under `totals_source: :cache` no longer deadlock on the rollup upsert and lose increments.
 - The Faraday middleware reads a multipart request's model only from a part starting at the request's boundary, so an uploaded file that contains a `model` field can no longer change the recorded model.
 - `prices:refresh` and a re-run of the prices generator keep `pricing.file` entries for models the bundled prices do not list, such as fine-tuned models, instead of deleting them unless marked `"_source": "manual"`, and the refresh change list no longer shows kept entries as removed.
 - `budgets.monthly`, `daily` and `per_call` given as a numeric string, such as an `ENV` value, are used as numbers instead of failing every call or never firing; a non-numeric or negative value, or an `on_exceeded` that cannot be called, raises at `configure`.
@@ -110,7 +110,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `prices:check` and `prices:refresh` print changed rates as plain decimals instead of forms like `0.375e1`.
 - `prices:refresh` and `prices:check` write and print the snapshot URL without its credentials, query string or fragment; only known secret parameter names were masked.
 - `Ingestion::Worker.flush!` inside a request, a job or `rails runner` notices inbox rows another process drained, instead of reading a cached answer until it times out.
-- `llm_cost_tracker:backfill_tag_costs` pages through tag rows by id, so a batch no longer rescans the rows already filled.
+- `llm_cost_tracker:backfill_tag_costs` no longer rescans the rows it already filled, which slowed it down on large tables.
 - On MySQL, the install and `upgrade_indexes` migrations no longer create `index_llm_cost_tracker_calls_on_unpriced`, which MySQL built as a plain index on `id` that no query uses.
 - The Calls page shows the CSV export's 10,000-call cap on its export link when more calls match; the cut was silent.
 - `doctor` warns when an enabled SDK integration cannot find one of the SDK classes it patches, such as a renamed resource in a newer SDK, instead of reporting it installed while those calls go unrecorded.

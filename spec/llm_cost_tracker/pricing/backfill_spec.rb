@@ -445,12 +445,12 @@ RSpec.describe LlmCostTracker::Pricing::Backfill do
   it "stores the minimum billed transcription length on a backfilled row as live capture does" do
     LlmCostTracker.configuration.ingestion.mode = :inline
     track = lambda do
-      LlmCostTracker.track(provider: "groq", model: "whisper-large-v3", tokens: { input_tokens: 0, output_tokens: 0 },
+      LlmCostTracker.track(provider: "groq", model: "whisper-backfill-test", tokens: { input_tokens: 0, output_tokens: 0 },
                            service_line_items: [{ dimension_key: "transcription_minute", quantity: BigDecimal(4) / 60 }])
     end
     track.call
     LlmCostTracker.configuration.pricing.overrides = {
-      "groq/whisper-large-v3" => { transcription_minute: 0.00185, _minimum_billed_seconds: 10 }
+      "groq/whisper-backfill-test" => { transcription_minute: 0.00185, _minimum_billed_seconds: 10 }
     }
     LlmCostTracker::Pricing::Registry.reset!
 

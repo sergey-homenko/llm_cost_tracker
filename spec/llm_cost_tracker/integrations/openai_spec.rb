@@ -535,7 +535,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       reply = ->(duration) { { status: 200, headers: { "Content-Type" => "application/json" },
                               body: { task: "transcribe", duration: duration, text: "hi", segments: [] }.to_json } }
       WebMock.stub_request(:post, "https://api.groq.com/openai/v1/audio/transcriptions")
-             .to_return(reply.call(3.2), reply.call(0.0))
+             .to_return(reply.call(12.2), reply.call(0.0))
 
       capture_sdk_events do |events|
         2.times do
@@ -543,7 +543,7 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
         end
 
         expect(events.map { |event| [event[:usage_source], event[:line_items].map { |item| BigDecimal(item[:quantity]) }] })
-          .to eq([["sdk_response", [BigDecimal(4) / 60]], ["unknown", []]])
+          .to eq([["sdk_response", [BigDecimal(13) / 60]], ["unknown", []]])
       end
     end
 
