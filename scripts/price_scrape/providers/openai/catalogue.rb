@@ -24,7 +24,8 @@ module LlmCostTracker
           def model_id(display_name)
             name = display_name.to_s.strip.sub(QUALIFIER, "")
             model_ids = @entries.values
-            extends = name.match?(DeprecatedModels::MODEL_ID) && model_ids.any? { |id| name.start_with?("#{id}-") }
+            families = model_ids + @entries.keys.map(&:downcase)
+            extends = name.match?(DeprecatedModels::MODEL_ID) && families.any? { |family| name.start_with?("#{family}-") }
             @entries[name] || (name if model_ids.include?(name) || extends)
           end
 

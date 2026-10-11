@@ -27,6 +27,7 @@ released_on_or_after_cutoff:
   - gpt-realtime-2.1-mini
   - gpt-realtime-translate
   - gpt-realtime-whisper
+  - gpt-rosalind-discovery
   - gpt-rosalind-research
   - gpt-transcribe
 released_before_cutoff:

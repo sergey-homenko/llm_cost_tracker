@@ -73,7 +73,7 @@ module LlmCostTracker
           def group_prices(rows, fields, model_id)
             rows.each_with_object({}) do |row, prices|
               cells = unwrap(row)
-              next unless cells.is_a?(Array) && cells.size >= 4
+              next unless cells.is_a?(Array) && cells.size >= (unwrap(cells[0]).is_a?(Numeric) ? 3 : 4)
 
               prices.merge!(group_row_prices(cells, fields, model_id) || {})
             end

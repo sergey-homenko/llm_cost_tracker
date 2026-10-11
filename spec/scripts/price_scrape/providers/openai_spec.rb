@@ -602,6 +602,26 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       expect(models.keys.grep(/[A-Z (]/)).to be_empty
     end
 
+    it "reads a table grouped by model ID with unlabeled rows, naming variants of a catalogued display name" do
+      life_sciences = "[0,{&quot;model&quot;:[0,&quot;Life Sciences&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;" \
+                      "gpt-rosalind-research&quot;],[0,5],[0,0.5],[0,25]]]]]}],"
+      island = pricing_html(
+        "groups" => [1, [
+          [0, { "model" => [0, "gpt-rosalind-research"], "rows" => [1, [[1, [[0, 5], [0, 0.5], [0, 25]]]]] }],
+          [0, { "model" => [0, "gpt-rosalind-discovery"], "rows" => [1, [[1, [[0, 6], [0, 0.6], [0, 30]]]]] }]
+        ]]
+      )[%r{<astro-island.*</astro-island>}]
+      moved = html.sub(life_sciences, "").sub("</body>", "#{island}</body>")
+      result = described_class.new.call(html: html_pages(described_class.source_url => moved),
+                                        scraped_at: "2026-10-11T00:00:00Z")
+
+      expect(result.models.fetch("gpt-rosalind-research")).to eq("input" => 5.0, "cache_read_input" => 0.5,
+                                                                  "output" => 25.0)
+      expect(result.models.fetch("gpt-rosalind-discovery")).to eq("input" => 6.0, "cache_read_input" => 0.6,
+                                                                   "output" => 30.0)
+      expect(result.notes.join).not_to include("rosalind")
+    end
+
     it "raises on a priced row with a qualifier other than a context length" do
       %w[gpt-6-luna gpt-5.4-mini].product(%w[audio text]).each do |model_id, qualifier|
         renamed = html.sub("[0,&quot;#{model_id}&quot;]", "[0,&quot;#{model_id} (#{qualifier})&quot;]")
