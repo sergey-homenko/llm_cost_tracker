@@ -50,7 +50,7 @@ jobs:
       LCT_TEST_ADMIN_DATABASE: postgres
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       with:
         fetch-depth: 0
     - name: Set up Ruby
@@ -93,7 +93,7 @@ jobs:
       LCT_TEST_PASSWORD: lct
       LCT_TEST_ADMIN_DATABASE: mysql
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       with:
         fetch-depth: 0
     - name: Set up Ruby
@@ -114,7 +114,7 @@ jobs:
   lint:
     runs-on: ubuntu-26.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       with:
         fetch-depth: 0
     - name: Set up Ruby
@@ -172,7 +172,7 @@ jobs:
     env:
       BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/smoke.gemfile
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       with:
         fetch-depth: 0
     - name: Set up Ruby
