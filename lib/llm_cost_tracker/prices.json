@@ -10,7 +10,6 @@
       "gemini/gemini-3.1-flash-image-preview": "2026-10-05",
       "gemini/gemini-3.1-flash-lite-preview": "2026-10-05",
       "gemini/gemini-3.7-flash": "2026-10-11",
-      "openai/gpt-rosalind-research": "2026-10-11",
       "openrouter/ai21/jamba-large-1.7": "2026-10-05",
       "openrouter/aion-labs/aion-1.0": "2026-10-05",
       "openrouter/aion-labs/aion-1.0-mini": "2026-10-05",
@@ -3682,6 +3681,11 @@
       "data_residency_transcription_minute": 0.0187,
       "transcription_minute": 0.017
     },
+    "openai/gpt-rosalind-discovery": {
+      "cache_read_input": 0.5,
+      "input": 5.0,
+      "output": 25.0
+    },
     "openai/gpt-rosalind-research": {
       "cache_read_input": 0.5,
       "input": 5.0,
@@ -5036,7 +5040,7 @@
     "openrouter/moonshotai/kimi-k3": {
       "cache_read_input": 0.55,
       "input": 0.8,
-      "output": 10.0
+      "output": 13.5
     },
     "openrouter/moonshotai/kimi-k3:batch": {
       "cache_read_input": 0.228,
@@ -6376,8 +6380,8 @@
       "output": 2.2
     },
     "openrouter/z-ai/glm-5.3": {
-      "cache_read_input": 0.038,
-      "input": 0.039,
+      "cache_read_input": 0.05,
+      "input": 0.07,
       "output": 4.8
     },
     "openrouter/z-ai/glm-5.3-flash": {
