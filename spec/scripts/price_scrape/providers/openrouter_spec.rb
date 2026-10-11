@@ -24,6 +24,10 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
     end
   end
 
+  it "skips ~ routing aliases, whose catalogue price is not the price of the model they route to" do
+    expect(result.models.keys.grep(/\A~/)).to be_empty
+  end
+
   it "skips zero-priced free-tier models so they don't pollute the registry with 0.0 rates" do
     expect(result.models).not_to have_key("openrouter/owl-alpha")
   end
