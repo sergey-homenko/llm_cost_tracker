@@ -4244,9 +4244,9 @@
       "output": 1.28
     },
     "openrouter/deepseek/deepseek-v4-flash-0731": {
-      "cache_read_input": 0.0154,
-      "input": 0.0154,
-      "output": 1.28
+      "cache_read_input": 0.018,
+      "input": 0.018,
+      "output": 0.64
     },
     "openrouter/deepseek/deepseek-v4-flash-0731:batch": {
       "cache_read_input": 0.0035,
@@ -5108,9 +5108,9 @@
       "output": 0.45
     },
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b": {
-      "cache_read_input": 0.1,
-      "input": 0.5,
-      "output": 2.2
+      "cache_read_input": 0.12,
+      "input": 0.6,
+      "output": 2.4
     },
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b:batch": {
       "cache_read_input": 0.2,
