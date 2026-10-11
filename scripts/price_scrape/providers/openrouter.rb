@@ -60,7 +60,7 @@ module LlmCostTracker
           return [nil, nil] unless entry.is_a?(Hash)
 
           model_id = entry["id"].to_s.strip
-          return [nil, nil] if model_id.empty?
+          return [nil, nil] if model_id.empty? || model_id.start_with?("~")
 
           pricing = entry["pricing"]
           return [nil, nil] unless pricing.is_a?(Hash)
