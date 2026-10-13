@@ -181,7 +181,7 @@
       "https://docs.x.ai/developers/pricing.md"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-10-11"
+    "updated_at": "2026-10-12"
   },
   "models": {
     "anthropic/claude-3-5-haiku": {
@@ -4248,8 +4248,8 @@
       "output": 1.28
     },
     "openrouter/deepseek/deepseek-v4-flash-0731": {
-      "cache_read_input": 0.018,
-      "input": 0.018,
+      "cache_read_input": 0.016,
+      "input": 0.016,
       "output": 0.64
     },
     "openrouter/deepseek/deepseek-v4-flash-0731:batch": {
@@ -4268,9 +4268,9 @@
       "output": 0.33
     },
     "openrouter/deepseek/deepseek-v4-pro": {
-      "cache_read_input": 0.0174,
-      "input": 0.2088,
-      "output": 0.4176
+      "cache_read_input": 0.036192,
+      "input": 0.434304,
+      "output": 0.868608
     },
     "openrouter/deepseek/deepseek-v4-pro-0813": {
       "cache_read_input": 0.044,
@@ -4583,9 +4583,9 @@
       "output": 0.12
     },
     "openrouter/google/gemma-4-26b-a4b-it": {
-      "cache_read_input": 0.0375,
-      "input": 0.0675,
-      "output": 0.225
+      "cache_read_input": 0.05,
+      "input": 0.09,
+      "output": 0.3
     },
     "openrouter/google/gemma-4-31b-it": {
       "cache_read_input": 0.05,
@@ -4750,8 +4750,8 @@
       "output": 0.6525
     },
     "openrouter/meta-llama/llama-4-scout": {
-      "input": 0.1,
-      "output": 0.3
+      "input": 0.18,
+      "output": 0.59
     },
     "openrouter/meta-llama/llama-guard-3-8b": {
       "input": 0.484,
@@ -5039,8 +5039,8 @@
     },
     "openrouter/moonshotai/kimi-k3": {
       "cache_read_input": 0.55,
-      "input": 0.8,
-      "output": 13.5
+      "input": 0.73,
+      "output": 10.0
     },
     "openrouter/moonshotai/kimi-k3:batch": {
       "cache_read_input": 0.228,
@@ -6341,7 +6341,7 @@
       "output": 2.0
     },
     "openrouter/z-ai/glm-4.6v": {
-      "cache_read_input": 0.055,
+      "cache_read_input": 0.05,
       "input": 0.3,
       "output": 0.9
     },
@@ -6380,14 +6380,14 @@
       "output": 2.2
     },
     "openrouter/z-ai/glm-5.3": {
-      "cache_read_input": 0.05,
-      "input": 0.07,
+      "cache_read_input": 0.059,
+      "input": 0.079,
       "output": 4.8
     },
     "openrouter/z-ai/glm-5.3-flash": {
-      "cache_read_input": 0.03,
-      "input": 0.15,
-      "output": 0.5
+      "cache_read_input": 0.0232,
+      "input": 0.0232,
+      "output": 1.2
     },
     "openrouter/z-ai/glm-5.3-flash:batch": {
       "cache_read_input": 0.012,
