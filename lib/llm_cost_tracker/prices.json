@@ -181,7 +181,7 @@
       "https://docs.x.ai/developers/pricing.md"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-10-12"
+    "updated_at": "2026-10-13"
   },
   "models": {
     "anthropic/claude-3-5-haiku": {
@@ -4243,8 +4243,8 @@
       "output": 0.431
     },
     "openrouter/deepseek/deepseek-v4-flash": {
-      "cache_read_input": 0.03,
-      "input": 0.03,
+      "cache_read_input": 0.0425,
+      "input": 0.0425,
       "output": 1.28
     },
     "openrouter/deepseek/deepseek-v4-flash-0731": {
@@ -4268,9 +4268,9 @@
       "output": 0.33
     },
     "openrouter/deepseek/deepseek-v4-pro": {
-      "cache_read_input": 0.036192,
-      "input": 0.434304,
-      "output": 0.868608
+      "cache_read_input": 0.079605,
+      "input": 0.95526,
+      "output": 1.91052
     },
     "openrouter/deepseek/deepseek-v4-pro-0813": {
       "cache_read_input": 0.044,
@@ -4283,9 +4283,9 @@
       "output": 1.98
     },
     "openrouter/deepseek/deepseek-v4.1-flash": {
-      "cache_read_input": 0.006,
-      "input": 0.3,
-      "output": 1.2
+      "cache_read_input": 0.0054,
+      "input": 0.0441,
+      "output": 0.891
     },
     "openrouter/deepseek/deepseek-v4.1-flash:batch": {
       "cache_read_input": 0.00336,
@@ -4740,9 +4740,9 @@
       "output": 0.33
     },
     "openrouter/meta-llama/llama-3.3-70b-instruct": {
-      "cache_read_input": 0.11,
-      "input": 0.22,
-      "output": 0.5
+      "cache_read_input": 0.295,
+      "input": 0.59,
+      "output": 0.79
     },
     "openrouter/meta-llama/llama-4-maverick": {
       "cache_read_input": 0.05,
@@ -4796,6 +4796,11 @@
       "input": 0.1,
       "output": 0.2
     },
+    "openrouter/meta/muse-wonder": {
+      "cache_read_input": 0.2,
+      "input": 4.0,
+      "output": 20.0
+    },
     "openrouter/microsoft/phi-4": {
       "input": 0.07,
       "output": 0.14
@@ -4837,9 +4842,9 @@
       "output": 1.08
     },
     "openrouter/minimax/minimax-m2.7": {
-      "cache_read_input": 0.042,
-      "input": 0.21,
-      "output": 0.84
+      "cache_read_input": 0.06,
+      "input": 0.3,
+      "output": 1.2
     },
     "openrouter/minimax/minimax-m3": {
       "cache_read_input": 0.06,
@@ -5040,7 +5045,7 @@
     "openrouter/moonshotai/kimi-k3": {
       "cache_read_input": 0.55,
       "input": 0.73,
-      "output": 10.0
+      "output": 13.5
     },
     "openrouter/moonshotai/kimi-k3:batch": {
       "cache_read_input": 0.228,
@@ -5632,8 +5637,9 @@
       "output": 30.0
     },
     "openrouter/openai/gpt-oss-120b": {
-      "input": 0.037,
-      "output": 0.17
+      "cache_read_input": 0.075,
+      "input": 0.15,
+      "output": 0.6
     },
     "openrouter/openai/gpt-oss-120b:batch": {
       "input": 0.0296,
@@ -6341,7 +6347,7 @@
       "output": 2.0
     },
     "openrouter/z-ai/glm-4.6v": {
-      "cache_read_input": 0.05,
+      "cache_read_input": 0.055,
       "input": 0.3,
       "output": 0.9
     },
@@ -6385,9 +6391,9 @@
       "output": 4.8
     },
     "openrouter/z-ai/glm-5.3-flash": {
-      "cache_read_input": 0.0232,
-      "input": 0.0232,
-      "output": 1.2
+      "cache_read_input": 0.0108,
+      "input": 0.0261,
+      "output": 0.9
     },
     "openrouter/z-ai/glm-5.3-flash:batch": {
       "cache_read_input": 0.012,
