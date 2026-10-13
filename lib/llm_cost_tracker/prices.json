@@ -4243,8 +4243,8 @@
       "output": 0.431
     },
     "openrouter/deepseek/deepseek-v4-flash": {
-      "cache_read_input": 0.0425,
-      "input": 0.0425,
+      "cache_read_input": 0.05,
+      "input": 0.05,
       "output": 1.28
     },
     "openrouter/deepseek/deepseek-v4-flash-0731": {
@@ -4268,9 +4268,9 @@
       "output": 0.33
     },
     "openrouter/deepseek/deepseek-v4-pro": {
-      "cache_read_input": 0.079605,
-      "input": 0.95526,
-      "output": 1.91052
+      "cache_read_input": 0.037178,
+      "input": 0.446136,
+      "output": 0.892272
     },
     "openrouter/deepseek/deepseek-v4-pro-0813": {
       "cache_read_input": 0.044,
@@ -4283,9 +4283,9 @@
       "output": 1.98
     },
     "openrouter/deepseek/deepseek-v4.1-flash": {
-      "cache_read_input": 0.0054,
-      "input": 0.0441,
-      "output": 0.891
+      "cache_read_input": 0.000876,
+      "input": 0.0438,
+      "output": 0.1752
     },
     "openrouter/deepseek/deepseek-v4.1-flash:batch": {
       "cache_read_input": 0.00336,
@@ -5045,7 +5045,7 @@
     "openrouter/moonshotai/kimi-k3": {
       "cache_read_input": 0.55,
       "input": 0.73,
-      "output": 13.5
+      "output": 10.0
     },
     "openrouter/moonshotai/kimi-k3:batch": {
       "cache_read_input": 0.228,
@@ -6121,6 +6121,12 @@
     "openrouter/sao10k/l3.3-euryale-70b": {
       "input": 0.65,
       "output": 0.75
+    },
+    "openrouter/scaledown/extract": {
+      "input": 0.04
+    },
+    "openrouter/scaledown/summarize": {
+      "input": 0.04
     },
     "openrouter/stepfun/step-3.5-flash": {
       "input": 0.1,
