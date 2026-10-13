@@ -40,6 +40,7 @@ module LlmCostTracker
         notes: :note_lines, stale: :stale_lines, difference: :difference_lines, model: :provider_lines,
         unconfirmed: :provider_lines, field: :field_gap_lines, unknown: :unknown_lines
       }.freeze
+      NOTE_KEY = /\A- `([^`]+)`:/
       Finding = Data.define(:section, :model, :field, :detail)
 
       class Error < StandardError; end
@@ -99,7 +100,7 @@ module LlmCostTracker
       end
 
       def report(sha)
-        acknowledged = reported.filter_map { |finding| acknowledgement(finding) }.uniq.sort
+        acknowledged = acknowledged_keys.uniq.sort
         details = acknowledged.map { |key| "- `#{key}`: #{@acknowledged.fetch(key)}" }
         heading = "<summary>Acknowledged (#{details.size})</summary>"
         block = "\n<details>\n#{heading}\n\n#{details.join("\n")}\n\n</details>\n"
@@ -120,12 +121,22 @@ module LlmCostTracker
         key if @acknowledged.key?(key)
       end
 
+      def note_acknowledgement(note)
+        key = note[NOTE_KEY, 1]
+        key if @acknowledged.key?(key)
+      end
+
+      def acknowledged_keys
+        reported.filter_map { |finding| acknowledgement(finding) } +
+          @notes.filter_map { |note| note_acknowledgement(note) }
+      end
+
       def section_lines(section, found) = send(SECTION_LINES.fetch(section, :detail_lines), found)
 
-      def note_lines(_found) = @notes
+      def note_lines(_found) = @notes.reject { |note| note_acknowledgement(note) }
 
       def stale_lines(_found)
-        stale = @acknowledged.keys - reported.filter_map { |finding| acknowledgement(finding) }
+        stale = @acknowledged.keys - acknowledged_keys
         stale.map { |key| "- `#{key}` no longer matches a finding" }
       end
 

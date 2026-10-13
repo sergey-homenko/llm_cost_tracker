@@ -154,6 +154,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::CrossCheck do
       )
     end
 
+    it "moves scraper notes about an acknowledged key to the report's acknowledged section" do
+      notes = ["- `gemini/gemini-3.7-flash`: unreadable rows", "- `gemini`: other note"]
+      check = described_class.new(registry: registry, catalogue: catalogue, models_dev: models_dev, notes: notes,
+                                  acknowledged: acknowledged.merge("gemini/gemini-3.7-flash" => "Routed."))
+
+      expect(check.findings).to include("### Scraper notes\n\n- `gemini`: other note\n")
+      expect(check.findings).not_to include("unreadable rows", "`gemini/gemini-3.7-flash` no longer matches")
+      expect(check.report("a" * 40)).to include("- `gemini/gemini-3.7-flash`: Routed.")
+    end
+
     it "lets a bare model key cover only the findings without a field" do
       expect(check.findings).to include(": openai/gpt-6-astra\n", "- `openai/gpt-6-astra` no longer matches a finding",
                                         "- `cache_creation_input_audio_token_cost` (1): openai/gpt-realtime-2.1")

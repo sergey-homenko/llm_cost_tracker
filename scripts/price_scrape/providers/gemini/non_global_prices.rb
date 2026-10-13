@@ -143,8 +143,8 @@ module LlmCostTracker
           end
 
           def unread_notes(ids, models)
-            ids.reject { |_name, id| models.key?(id) }.keys.map do |name|
-              "- `gemini`: Vertex AI prices #{name} in rows the scraper cannot read, " \
+            ids.reject { |_name, id| models.key?(id) }.map do |name, id|
+              "- `gemini/#{id}`: Vertex AI prices #{name} in rows the scraper cannot read, " \
                 "and the Gemini API page does not price it"
             end
           end

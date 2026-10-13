@@ -421,7 +421,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     )
 
     unread = scrape(html, vertex: vertex_html.sub(/(Cyber<.*?)Input \(text, image, video, audio\)/m, '\1Input (text)'))
-    expect(unread.notes).to eq(["- `gemini`: Vertex AI prices Gemini 3.8 Flash Cyber in rows the scraper cannot read, " \
+    expect(unread.notes).to eq(["- `gemini/gemini-3.8-flash-cyber`: Vertex AI prices Gemini 3.8 Flash Cyber in rows " \
+                                "the scraper cannot read, " \
                                 "and the Gemini API page does not price it"])
     expect(unread.models).not_to have_key("gemini-3.8-flash-cyber")
   end
