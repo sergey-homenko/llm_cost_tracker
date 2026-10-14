@@ -51,6 +51,8 @@
       "openrouter/inception/mercury-2.5-preview": "2026-10-05",
       "openrouter/inclusionai/ling-2.6-1t": "2026-10-05",
       "openrouter/inclusionai/ling-2.6-flash": "2026-10-05",
+      "openrouter/inclusionai/ling-3.0-flash-fin": "2026-10-14",
+      "openrouter/inclusionai/ling-3.0-flash-sante": "2026-10-14",
       "openrouter/inclusionai/ring-2.6-1t": "2026-10-05",
       "openrouter/inflection/inflection-3-pi": "2026-10-05",
       "openrouter/inflection/inflection-3-productivity": "2026-10-05",
@@ -122,6 +124,7 @@
       "openrouter/thedrummer/rocinante-12b": "2026-10-05",
       "openrouter/thinkingmachines/inkling-small:batch": "2026-10-05",
       "openrouter/thinkingmachines/inkling:batch": "2026-10-05",
+      "openrouter/unbiased/pareto": "2026-10-14",
       "openrouter/xiaomi/mimo-v2-flash": "2026-10-05",
       "openrouter/xiaomi/mimo-v2-omni": "2026-10-05",
       "openrouter/xiaomi/mimo-v2-pro": "2026-10-05",
@@ -181,7 +184,7 @@
       "https://docs.x.ai/developers/pricing.md"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-10-13"
+    "updated_at": "2026-10-14"
   },
   "models": {
     "anthropic/claude-3-5-haiku": {
@@ -1666,6 +1669,90 @@
       "priority_input_from_2027-01-01": 1.8,
       "priority_output": 16.2,
       "priority_output_from_2027-01-01": 32.4
+    },
+    "gemini/gemini-4-argon": {
+      "audio_input": 2.0,
+      "audio_input_from_2026-12-01": 4.0,
+      "batch_audio_input": 1.0,
+      "batch_audio_input_from_2026-12-01": 2.0,
+      "batch_cache_read_input": 0.05,
+      "batch_cache_read_input_from_2026-12-01": 0.1,
+      "batch_data_residency_audio_input_from_2026-07-01": 1.1,
+      "batch_data_residency_audio_input_from_2026-12-01": 2.2,
+      "batch_data_residency_cache_read_input_from_2026-07-01": 0.055,
+      "batch_data_residency_cache_read_input_from_2026-12-01": 0.11,
+      "batch_data_residency_image_input_from_2026-07-01": 1.1,
+      "batch_data_residency_image_input_from_2026-12-01": 2.2,
+      "batch_data_residency_input_from_2026-07-01": 1.1,
+      "batch_data_residency_input_from_2026-12-01": 2.2,
+      "batch_data_residency_output_from_2026-07-01": 5.5,
+      "batch_data_residency_output_from_2026-12-01": 11.0,
+      "batch_image_input": 1.0,
+      "batch_image_input_from_2026-12-01": 2.0,
+      "batch_input": 1.0,
+      "batch_input_from_2026-12-01": 2.0,
+      "batch_output": 5.0,
+      "batch_output_from_2026-12-01": 10.0,
+      "cache_read_input": 0.1,
+      "cache_read_input_from_2026-12-01": 0.2,
+      "data_residency_audio_input_from_2026-07-01": 2.2,
+      "data_residency_audio_input_from_2026-12-01": 4.4,
+      "data_residency_cache_read_input_from_2026-07-01": 0.11,
+      "data_residency_cache_read_input_from_2026-12-01": 0.22,
+      "data_residency_image_input_from_2026-07-01": 2.2,
+      "data_residency_image_input_from_2026-12-01": 4.4,
+      "data_residency_input_from_2026-07-01": 2.2,
+      "data_residency_input_from_2026-12-01": 4.4,
+      "data_residency_output_from_2026-07-01": 11.0,
+      "data_residency_output_from_2026-12-01": 22.0,
+      "flex_audio_input": 1.0,
+      "flex_audio_input_from_2026-12-01": 2.0,
+      "flex_cache_read_input": 0.05,
+      "flex_cache_read_input_from_2026-12-01": 0.1,
+      "flex_data_residency_audio_input_from_2026-07-01": 1.1,
+      "flex_data_residency_audio_input_from_2026-12-01": 2.2,
+      "flex_data_residency_cache_read_input_from_2026-07-01": 0.055,
+      "flex_data_residency_cache_read_input_from_2026-12-01": 0.11,
+      "flex_data_residency_image_input_from_2026-07-01": 1.1,
+      "flex_data_residency_image_input_from_2026-12-01": 2.2,
+      "flex_data_residency_input_from_2026-07-01": 1.1,
+      "flex_data_residency_input_from_2026-12-01": 2.2,
+      "flex_data_residency_output_from_2026-07-01": 5.5,
+      "flex_data_residency_output_from_2026-12-01": 11.0,
+      "flex_image_input": 1.0,
+      "flex_image_input_from_2026-12-01": 2.0,
+      "flex_input": 1.0,
+      "flex_input_from_2026-12-01": 2.0,
+      "flex_output": 5.0,
+      "flex_output_from_2026-12-01": 10.0,
+      "grounding_request": 14.0,
+      "image_input": 2.0,
+      "image_input_from_2026-12-01": 4.0,
+      "input": 2.0,
+      "input_from_2026-12-01": 4.0,
+      "maps_grounding_request": 14.0,
+      "output": 10.0,
+      "output_from_2026-12-01": 20.0,
+      "priority_audio_input": 3.6,
+      "priority_audio_input_from_2026-12-01": 7.2,
+      "priority_cache_read_input": 0.18,
+      "priority_cache_read_input_from_2026-12-01": 0.36,
+      "priority_data_residency_audio_input_from_2026-07-01": 3.96,
+      "priority_data_residency_audio_input_from_2026-12-01": 7.92,
+      "priority_data_residency_cache_read_input_from_2026-07-01": 0.198,
+      "priority_data_residency_cache_read_input_from_2026-12-01": 0.396,
+      "priority_data_residency_image_input_from_2026-07-01": 3.96,
+      "priority_data_residency_image_input_from_2026-12-01": 7.92,
+      "priority_data_residency_input_from_2026-07-01": 3.96,
+      "priority_data_residency_input_from_2026-12-01": 7.92,
+      "priority_data_residency_output_from_2026-07-01": 19.8,
+      "priority_data_residency_output_from_2026-12-01": 39.6,
+      "priority_image_input": 3.6,
+      "priority_image_input_from_2026-12-01": 7.2,
+      "priority_input": 3.6,
+      "priority_input_from_2026-12-01": 7.2,
+      "priority_output": 18.0,
+      "priority_output_from_2026-12-01": 36.0
     },
     "gemini/gemini-embedding-2": {
       "audio_input": 6.5,
@@ -4243,9 +4330,9 @@
       "output": 0.431
     },
     "openrouter/deepseek/deepseek-v4-flash": {
-      "cache_read_input": 0.05,
-      "input": 0.05,
-      "output": 1.28
+      "cache_read_input": 0.0182,
+      "input": 0.091,
+      "output": 0.182
     },
     "openrouter/deepseek/deepseek-v4-flash-0731": {
       "cache_read_input": 0.016,
@@ -4268,9 +4355,9 @@
       "output": 0.33
     },
     "openrouter/deepseek/deepseek-v4-pro": {
-      "cache_read_input": 0.037178,
-      "input": 0.446136,
-      "output": 0.892272
+      "cache_read_input": 0.079605,
+      "input": 0.95526,
+      "output": 1.91052
     },
     "openrouter/deepseek/deepseek-v4-pro-0813": {
       "cache_read_input": 0.044,
@@ -4283,9 +4370,9 @@
       "output": 1.98
     },
     "openrouter/deepseek/deepseek-v4.1-flash": {
-      "cache_read_input": 0.000876,
-      "input": 0.0438,
-      "output": 0.1752
+      "cache_read_input": 0.0054,
+      "input": 0.02016,
+      "output": 0.891
     },
     "openrouter/deepseek/deepseek-v4.1-flash:batch": {
       "cache_read_input": 0.00336,
@@ -4557,6 +4644,22 @@
       "input": 0.375,
       "output": 1.875
     },
+    "openrouter/google/gemini-4-argon": {
+      "audio_input": 2.0,
+      "cache_read_input": 0.1,
+      "cache_write_input": 0.1875,
+      "image_input": 2.0,
+      "input": 2.0,
+      "output": 10.0
+    },
+    "openrouter/google/gemini-4-argon:batch": {
+      "audio_input": 1.0,
+      "cache_read_input": 0.05,
+      "cache_write_input": 0.1875,
+      "image_input": 1.0,
+      "input": 1.0,
+      "output": 5.0
+    },
     "openrouter/google/gemini-nano-banana-2.1": {
       "input": 1.5,
       "output": 7.5
@@ -4655,9 +4758,14 @@
       "output": 0.1232
     },
     "openrouter/inclusionai/ling-3.0-flash-vl": {
-      "cache_read_input": 0.0042,
-      "input": 0.021,
-      "output": 0.0616
+      "cache_read_input": 0.012,
+      "input": 0.06,
+      "output": 0.18
+    },
+    "openrouter/inclusionai/ling-3.1-flash": {
+      "cache_read_input": 0.015,
+      "input": 0.075,
+      "output": 0.225
     },
     "openrouter/inclusionai/ring-2.6-1t": {
       "cache_read_input": 0.015,
@@ -4700,6 +4808,11 @@
     "openrouter/liquid/lfm-2-24b-a2b": {
       "input": 0.03,
       "output": 0.12
+    },
+    "openrouter/liquid/lfm-2.5-24b-a2b": {
+      "cache_read_input": 0.025,
+      "input": 0.05,
+      "output": 0.7
     },
     "openrouter/mancer/weaver": {
       "input": 0.4,
@@ -4823,8 +4936,8 @@
       "output": 2.2
     },
     "openrouter/minimax/minimax-m2": {
-      "input": 0.3,
-      "output": 1.2
+      "input": 0.255,
+      "output": 1.02
     },
     "openrouter/minimax/minimax-m2-her": {
       "cache_read_input": 0.03,
@@ -5043,9 +5156,9 @@
       "output": 4.0
     },
     "openrouter/moonshotai/kimi-k3": {
-      "cache_read_input": 0.55,
-      "input": 0.73,
-      "output": 10.0
+      "cache_read_input": 0.32,
+      "input": 0.7,
+      "output": 15.0
     },
     "openrouter/moonshotai/kimi-k3:batch": {
       "cache_read_input": 0.228,
@@ -5637,9 +5750,8 @@
       "output": 30.0
     },
     "openrouter/openai/gpt-oss-120b": {
-      "cache_read_input": 0.075,
-      "input": 0.15,
-      "output": 0.6
+      "input": 0.037,
+      "output": 0.17
     },
     "openrouter/openai/gpt-oss-120b:batch": {
       "input": 0.0296,
@@ -5953,14 +6065,14 @@
       "output": 2.6
     },
     "openrouter/qwen/qwen3.5-35b-a3b": {
-      "cache_read_input": 0.04,
-      "input": 0.08,
-      "output": 0.75
+      "cache_read_input": 0.05,
+      "input": 0.15,
+      "output": 1.0
     },
     "openrouter/qwen/qwen3.5-397b-a17b": {
-      "cache_read_input": 0.225,
-      "input": 0.55,
-      "output": 3.5
+      "cache_read_input": 0.3,
+      "input": 0.5,
+      "output": 3.6
     },
     "openrouter/qwen/qwen3.5-9b": {
       "input": 0.1,
@@ -6225,6 +6337,11 @@
       "input": 0.8,
       "output": 3.2
     },
+    "openrouter/unbiased/pareto-26.9": {
+      "cache_read_input": 0.25,
+      "input": 2.5,
+      "output": 7.5
+    },
     "openrouter/undi95/remm-slerp-l2-13b": {
       "input": 0.35,
       "output": 0.65
@@ -6377,13 +6494,13 @@
       "output": 4.0
     },
     "openrouter/z-ai/glm-5.1": {
-      "cache_read_input": 0.1794,
-      "input": 0.966,
-      "output": 3.036
+      "cache_read_input": 0.247,
+      "input": 1.33,
+      "output": 4.18
     },
     "openrouter/z-ai/glm-5.2": {
-      "cache_read_input": 0.059,
-      "input": 0.06,
+      "cache_read_input": 0.049,
+      "input": 0.05,
       "output": 7.0
     },
     "openrouter/z-ai/glm-5.2:batch": {
@@ -6398,7 +6515,7 @@
     },
     "openrouter/z-ai/glm-5.3-flash": {
       "cache_read_input": 0.0108,
-      "input": 0.0261,
+      "input": 0.036,
       "output": 0.9
     },
     "openrouter/z-ai/glm-5.3-flash:batch": {
