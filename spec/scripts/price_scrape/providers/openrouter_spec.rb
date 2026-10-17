@@ -12,7 +12,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
     expect(result.models.size).to be >= described_class.min_models
     expect(result.models).to include(
       "openai/gpt-4o" => a_hash_including("input" => 2.5, "output" => 10.0),
-      "anthropic/claude-sonnet-4" => a_hash_including(
+      "anthropic/claude-sonnet-4.6" => a_hash_including(
         "input" => 3.0, "output" => 15.0, "cache_read_input" => 0.3, "cache_write_input" => 3.75
       )
     )
@@ -33,7 +33,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openrouter do
   end
 
   it "ignores per-request fields like web_search so a $0.01/call rate isn't misread as a per-token price" do
-    sonnet = result.models.fetch("anthropic/claude-sonnet-4")
+    sonnet = result.models.fetch("anthropic/claude-sonnet-4.6")
     expect(sonnet.keys).not_to include("web_search", "web_search_request", "request")
   end
 

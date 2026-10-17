@@ -8,7 +8,7 @@ module LlmCostTracker
       class Anthropic < Base
         class PriceTable
           PROMPT_TIER = /for prompts (up to|over) ([\d,]+) tokens/
-          PRICE = %r{\$\s*(\d+(?:\.\d+)?)\s*/\s*MTok}i
+          PRICE = %r{\$\s*(\d+(?:\.\d+)?)\s*(?:USD\s*)?/\s*MTok}i
 
           def self.find(doc, model_ids, &)
             doc.css("table").map { |node| new(node, model_ids) }.find(&)

@@ -13,7 +13,7 @@ module LlmCostTracker
         source_url "https://openrouter.ai/api/v1/models"
         min_models 30
         max_price 5000.0
-        anchors "openai/gpt-4o", "anthropic/claude-sonnet-4"
+        anchors "openai/gpt-4o", "anthropic/claude-sonnet-4.6"
 
         PER_TOKEN_FIELDS = {
           "prompt" => "input",

@@ -183,7 +183,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
     it "flags a model retired everywhere as deprecated" do
       result = scrape(html.gsub("retired, except on Google Cloud.", "retired."))
 
-      expect(result.deprecated_models).to eq(["claude-opus-4"])
+      expect(result.deprecated_models).to contain_exactly("claude-opus-4", "claude-3-5-haiku")
     end
 
     it "raises when a retired row loses its lifecycle note or the note's wording changes" do
