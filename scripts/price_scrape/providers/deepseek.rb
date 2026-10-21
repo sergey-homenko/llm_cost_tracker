@@ -10,7 +10,7 @@ module LlmCostTracker
   module Pricing::Scrape
     module Providers
       class Deepseek < Base
-        source_url "https://api-docs.deepseek.com/quick_start/pricing"
+        source_url "https://api-docs.deepseek.com/quick_start/pricing/"
         min_models 2
         max_price 100.0
         anchors "deepseek-flash"
