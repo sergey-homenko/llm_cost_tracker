@@ -9,10 +9,18 @@ module LlmCostTracker
         end
 
         def stream(*args, **kwargs)
-          Integrations::Anthropic.wrap_stream(args, kwargs, **Integrations::Anthropic.stream_seam(@client)) { super }
+          Integrations::Anthropic.wrap_stream(args, kwargs, **Integrations::Anthropic.stream_seam(@client)) do
+            nested = Thread.current[:llm_cost_tracker_anthropic_stream]
+            Thread.current[:llm_cost_tracker_anthropic_stream] = true
+            super
+          ensure
+            Thread.current[:llm_cost_tracker_anthropic_stream] = nested
+          end
         end
 
         def stream_raw(*args, **kwargs)
+          return super if Thread.current[:llm_cost_tracker_anthropic_stream]
+
           Integrations::Anthropic.wrap_stream(args, kwargs, **Integrations::Anthropic.stream_seam(@client)) { super }
         end
       end
