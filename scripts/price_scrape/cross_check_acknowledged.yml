@@ -55,7 +55,6 @@ mistral/mistral-large-4.cache_read_input: "Mistral's model card lists $0.07 cach
 mistral/mistral-small: "Not named on any Mistral model card."
 mistral/mistral-tiny: "Not named on any Mistral model card."
 mistral/open-mistral-nemo: "Retired on 2026-07-31 with Mistral Nemo 12B, whose card names it."
-mistral/voxtral-small-latest: "Mistral's pricing page does not price Voxtral Small, and models.dev does not confirm LiteLLM's rate."
 openai/daybreak-blue-latest: "Not an OpenAI model id; Daybreak Blue is gpt-daybreak-blue-latest."
 openai/daybreak-red-latest: "Not an OpenAI model id; Daybreak Red is gpt-daybreak-red-latest."
 openai/gpt-3.5-turbo-16k: "Not an OpenAI model id; gpt-3.5-turbo-16k-0613 shut down on 2024-09-13."
