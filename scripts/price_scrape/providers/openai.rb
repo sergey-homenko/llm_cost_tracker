@@ -44,7 +44,9 @@ module LlmCostTracker
         }.freeze
         REQUIRED_TOOL_PRICES = %w[web_search_request file_search_call].freeze
 
-        def self.prefixed_fields(prefix, columns = %i[input cache_read_input cache_write_input output])
+        TOKEN_COLUMNS = %i[input cache_read_input cache_write_input cache_write_extended_input output].freeze
+
+        def self.prefixed_fields(prefix, columns = TOKEN_COLUMNS)
           columns.to_h { |column| [column, "#{prefix}#{column}"] }.freeze
         end
         private_class_method :prefixed_fields

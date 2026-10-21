@@ -255,6 +255,9 @@
     "cohere/rerank-v4.0-pro": {
       "rerank_search_unit": 2.5
     },
+    "cohere/rerank-v5.0-pro": {
+      "input": 0.05
+    },
     "deepseek/deepseek-flash": {
       "_off_peak_windows": [
         {
@@ -1191,6 +1194,7 @@
       "batch_input": 5.0,
       "batch_output": 25.0,
       "cache_read_input": 1.0,
+      "cache_write_extended_input": 25.0,
       "cache_write_input": 12.5,
       "data_residency_cache_read_input": 1.1,
       "data_residency_cache_write_input": 13.75,

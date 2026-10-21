@@ -135,6 +135,14 @@ module AccountingCases
                  responses_object(id: "resp_fa15", model: "gpt-6-astra", usage: usage, service_tier: "ultrafast"))
   end
 
+  define_case "faraday openai responses: gpt-6-astra 12-hour cache writes at the extended write rate" do
+    usage = responses_usage(12_000, 1000, cached: 4000)
+    usage[:input_tokens_details].merge!(cache_write_tokens: 7000,
+                                        cache_write_tokens_details: { ttl_30m_tokens: 5000, ttl_12h_tokens: 2000 })
+    faraday_json("#{OPENAI_API}/responses", { model: "gpt-6-astra", input: "hi" },
+                 responses_object(id: "resp_fa16", model: "gpt-6-astra", usage: usage))
+  end
+
   define_case "faraday openai responses: web search, file search and code interpreter calls" do
     output = [
       { type: "web_search_call", id: "ws_1", status: "completed", action: { type: "search", query: "q" } },
