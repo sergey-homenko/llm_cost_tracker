@@ -12,6 +12,10 @@ module LlmCostTracker
         class RenderedLongContextPrices
           SOURCE_URL = "https://developers.openai.com/api/docs/pricing.md"
           THRESHOLD = /Long context: >(\d+)K input tokens|\(<(\d+)K context length\)/
+          LONG_CONTEXT_COLUMNS = {
+            input: ["Long context input"], cache_read_input: ["Long context cached input"],
+            cache_write_input: ["Long context 30m write", "Long context cache writes"], output: ["Long context output"]
+          }.freeze
 
           def initialize(markdown, tier:, fields:, model_ids:)
             @markdown = markdown
@@ -21,27 +25,44 @@ module LlmCostTracker
           end
 
           def models
-            rows.each_with_object({}) do |cells, models|
-              model_id = @model_ids[cells[0]]
-              next unless model_id && cells.size >= 9
+            tables.each_with_object({}) do |(header, *rows), models|
+              columns = long_context_columns(header) or next
 
-              prices = prices_from(cells)
-              models[model_id] = prices if prices
+              rows.each do |cells|
+                model_id = @model_ids[cells[0]] or next
+                prices = prices_from(columns.transform_values { |index| cells[index] if index })
+                models[model_id] = prices if prices
+              end
             end
           end
 
           private
 
-          def rows
-            section = @markdown[/^### #{@tier} pricing data$(.*?)(?=^#|\z)/im, 1].to_s
-            section.lines.filter_map { |line| line.split("|")[1..-2].map(&:strip) if line.start_with?("|") }
+          def long_context_columns(header)
+            columns = LONG_CONTEXT_COLUMNS.transform_values { |names| header.index { |label| names.include?(label) } }
+            columns if columns[:input] && columns[:output]
+          end
+
+          def tables
+            section.lines.slice_when { |line, following| line.start_with?("|") != following.start_with?("|") }
+                   .select { |lines| lines.first.start_with?("|") }
+                   .map { |lines| table_cells(lines) }
+          end
+
+          def section
+            (@markdown[/^#### #{@tier}$(.*?)(?=^#|\z)/im, 1] ||
+              @markdown[/^### #{@tier} pricing data$(.*?)(?=^#|\z)/im, 1]).to_s
+          end
+
+          def table_cells(lines)
+            lines.map { |line| line.split("|")[1..-2].map(&:strip) }.reject { |cells| cells.all?(/\A-+\z/) }
           end
 
           def prices_from(cells)
-            long_input = parse_optional_price(cells[5])
-            long_cache_read = parse_optional_price(cells[6])
-            long_cache_write = parse_optional_price(cells[7])
-            long_output = parse_optional_price(cells[8])
+            long_input = parse_optional_price(cells[:input])
+            long_cache_read = parse_optional_price(cells[:cache_read_input])
+            long_cache_write = parse_optional_price(cells[:cache_write_input])
+            long_output = parse_optional_price(cells[:output])
             return nil unless long_input && long_output
 
             prices = {

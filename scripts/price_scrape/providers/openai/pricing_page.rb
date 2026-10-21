@@ -15,19 +15,24 @@ module LlmCostTracker
           PRICING_COMPONENT = "/pricing."
           SPECIALIZED_PRICING = "#content-switcher-specialized-pricing"
           TIER_PANE = "[data-content-switcher-pane]"
+          TIER_ROWS = { "flex" => %w[batch alternateRows] }.freeze
+          PRICE_HEADINGS = ["Input", "Cached input", "Output"].freeze
 
           def initialize(doc)
             @doc = doc
           end
 
           def tier_rows(tier)
-            props = pricing_props(@doc).find { |candidate| unwrap(candidate["tier"]) == tier }
-            raise Error, "OpenAI #{tier} pricing table not found" unless props
+            table_tier, rows_key = TIER_ROWS.fetch(tier, [tier, "rows"])
+            tables = pricing_props(@doc).select do |candidate|
+              unwrap(candidate["tier"]) == table_tier && candidate.key?(rows_key)
+            end
+            raise Error, "OpenAI #{tier} pricing table not found" if tables.empty?
 
-            rows = unwrap(props["rows"])
-            raise Error, "OpenAI standard pricing rows not found" unless rows.is_a?(Array)
+            rows = tables.map { |props| unwrap(props[rows_key]) }
+            raise Error, "OpenAI standard pricing rows not found" unless rows.all?(Array)
 
-            rows
+            rows.flatten(1)
           end
 
           def specialized_groups(tier)
@@ -66,7 +71,36 @@ module LlmCostTracker
 
           def groups(props)
             groups = unwrap(props["groups"])
-            groups.is_a?(Array) ? groups : []
+            return [] unless groups.is_a?(Array)
+
+            order = price_column_order(props)
+            order ? groups.map { |group| ordered_group(unwrap(group), order) } : groups
+          end
+
+          def price_column_order(props)
+            headings = unwrap(props["headings"])
+            return unless headings.is_a?(Array)
+
+            labels = headings.drop(1).map { |heading| heading_label(heading).to_s }
+            prices = PRICE_HEADINGS.map { |name| labels.index { |label| label.start_with?(name) } }
+            ((0...labels.size).to_a - prices) + prices if prices.all?
+          end
+
+          def heading_label(heading)
+            heading = unwrap(heading)
+            tooltip = unwrap(heading["__pricingTooltipHeading"]) if heading.is_a?(Hash)
+            tooltip.is_a?(Hash) ? unwrap(tooltip["label"]) : heading
+          end
+
+          def ordered_group(group, order)
+            rows = unwrap(group["rows"]) if group.is_a?(Hash)
+            return group unless rows.is_a?(Array)
+
+            group.merge("rows" => rows.map { |row| ordered_cells(unwrap(row), order) })
+          end
+
+          def ordered_cells(cells, order)
+            cells.is_a?(Array) && cells.size == order.size ? cells.values_at(*order) : cells
           end
 
           def shown_under?(island, tier)

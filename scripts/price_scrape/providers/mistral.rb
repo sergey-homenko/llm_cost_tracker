@@ -36,7 +36,7 @@ module LlmCostTracker
         PRICE = %r{\A(?:\$(?<amount>\d+(?:\.\d+)?)(?: (?<unit>/1000 Pages|/Min|/M Chars))?|(?<free>Free))\z}
         UNIT_COLUMNS = {
           "/1000 Pages" => %w[input ocr_page], "/Min" => %w[input transcription_minute],
-          "/M Chars" => %w[output text_to_speech_character]
+          "/M Chars" => %w[input text_to_speech_character]
         }.freeze
         RETIRED_TABLE = "//h3[normalize-space()='Deprecated & retired models']/following::"
         CARD_NAMES = /\\"names\\":\[([^\]]*)\]/

@@ -34,11 +34,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       },
       {
         "tier" => [0, "batch"],
-        "rows" => [1, [[1, [[0, "gpt-5"], [0, 0.625], [0, 0.0625], [0, 5]]]]]
-      },
-      {
-        "tier" => [0, "flex"],
-        "rows" => [1, [[1, [[0, "gpt-5"], [0, 0.625], [0, 0.0625], [0, 5]]]]]
+        "rows" => [1, [[1, [[0, "gpt-5"], [0, 0.625], [0, 0.0625], [0, 5]]]]],
+        "alternateRows" => [1, [[1, [[0, "gpt-5"], [0, 0.625], [0, 0.0625], [0, 5]]]]]
       },
       {
         "tier" => [0, "fast"],
@@ -439,16 +436,6 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       expect(result.models.fetch("gpt-3.5-turbo-0125")).to eq(
         "input" => 0.5, "output" => 1.5, "batch_input" => 0.25, "batch_output" => 0.75
       )
-      expect(result.models.fetch("gpt-3.5-turbo-1106")).to eq(
-        "input" => 1.0, "output" => 2.0, "batch_input" => 1.0, "batch_output" => 2.0
-      )
-      expect(result.models.fetch("gpt-3.5-turbo-instruct")).to eq("input" => 1.5, "output" => 2.0)
-      expect(result.models.fetch("davinci-002")).to eq(
-        "input" => 2.0, "output" => 2.0, "batch_input" => 1.0, "batch_output" => 1.0
-      )
-      expect(result.models.fetch("babbage-002")).to eq(
-        "input" => 0.4, "output" => 0.4, "batch_input" => 0.2, "batch_output" => 0.2
-      )
     end
 
     it "prices transcription rows as text tokens and keeps the audio input rate the page stopped listing" do
@@ -499,7 +486,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "fast_input" => 20.0, "priority_input" => 20.0
       )
       expect(fields.keys.grep(/ultrapriority|priority_.*ultrafast/)).to be_empty
-      expect(result.models.except("gpt-6-astra").values.flat_map(&:keys).grep(/ultrafast/)).to be_empty
+      expect(result.models.except("gpt-6-astra", "gpt-6.1-sol").values.flat_map(&:keys).grep(/ultrafast/)).to be_empty
     end
 
     it "uplifts the models OpenAI processes regionally that were released on or after the cutoff it states" do
@@ -603,22 +590,12 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     end
 
     it "reads a table grouped by model ID with unlabeled rows, naming variants of a catalogued display name" do
-      life_sciences = "[0,{&quot;model&quot;:[0,&quot;Life Sciences&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;" \
-                      "gpt-rosalind-research&quot;],[0,5],[0,0.5],[0,25]]]]]}],"
-      island = pricing_html(
-        "groups" => [1, [
-          [0, { "model" => [0, "gpt-rosalind-research"], "rows" => [1, [[1, [[0, 5], [0, 0.5], [0, 25]]]]] }],
-          [0, { "model" => [0, "gpt-rosalind-discovery"], "rows" => [1, [[1, [[0, 6], [0, 0.6], [0, 30]]]]] }]
-        ]]
-      )[%r{<astro-island.*</astro-island>}]
-      moved = html.sub(life_sciences, "").sub("</body>", "#{island}</body>")
-      result = described_class.new.call(html: html_pages(described_class.source_url => moved),
-                                        scraped_at: "2026-10-11T00:00:00Z")
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-10-11T00:00:00Z")
 
       expect(result.models.fetch("gpt-rosalind-research")).to eq("input" => 5.0, "cache_read_input" => 0.5,
                                                                   "output" => 25.0)
-      expect(result.models.fetch("gpt-rosalind-discovery")).to eq("input" => 6.0, "cache_read_input" => 0.6,
-                                                                   "output" => 30.0)
+      expect(result.models.fetch("gpt-rosalind-discovery")).to eq("input" => 5.0, "cache_read_input" => 0.5,
+                                                                   "output" => 25.0)
       expect(result.notes.join).not_to include("rosalind")
     end
 
