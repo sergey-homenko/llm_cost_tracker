@@ -359,6 +359,17 @@ RSpec.describe LlmCostTracker::Integrations::Anthropic do
       end
     end
 
+    it "records a stream and a beta stream once each, also on SDKs whose stream calls stream_raw" do
+      stub_sdk_sse(:post, %r{\Ahttps://api\.anthropic\.com/v1/messages}, body: sse_body)
+
+      capture_sdk_events do |events|
+        client.messages.stream(**request_params).each { |_| nil }
+        client.beta.messages.stream(**request_params).each { |_| nil }
+
+        expect(events.size).to eq(2)
+      end
+    end
+
     it "records token usage from stream_raw" do
       stub_sdk_sse(:post, "https://api.anthropic.com/v1/messages", body: sse_body)
 

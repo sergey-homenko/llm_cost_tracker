@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- anthropic gem 1.81+ `messages.stream` and `beta.messages.stream` are recorded once instead of twice.
+
 ## [0.15.0] - 2026-10-10
 
 ### Added
