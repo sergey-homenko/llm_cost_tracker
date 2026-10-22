@@ -14,8 +14,10 @@ module LlmCostTracker
           THRESHOLD = /Long context: >(\d+)K input tokens|\(<(\d+)K context length\)/
           LONG_CONTEXT_COLUMNS = {
             input: ["Long context input"], cache_read_input: ["Long context cached input"],
-            cache_write_input: ["Long context 30m write", "Long context cache writes"], output: ["Long context output"]
+            cache_write_input: ["Long context 30m write", "Long context cache writes"],
+            cache_write_extended_input: ["Long context 12h write"], output: ["Long context output"]
           }.freeze
+          EXTENDED_WRITE_COLUMN = "Short context 12h write"
 
           def initialize(markdown, tier:, fields:, model_ids:)
             @markdown = markdown
@@ -26,17 +28,27 @@ module LlmCostTracker
 
           def models
             tables.each_with_object({}) do |(header, *rows), models|
-              columns = long_context_columns(header) or next
+              columns = long_context_columns(header)
+              extended = header.index(EXTENDED_WRITE_COLUMN)
+              next unless columns || extended
 
               rows.each do |cells|
                 model_id = @model_ids[cells[0]] or next
-                prices = prices_from(columns.transform_values { |index| cells[index] if index })
-                models[model_id] = prices if prices
+                prices = row_prices(cells, columns, extended)
+                models[model_id] = prices if prices.any?
               end
             end
           end
 
           private
+
+          def row_prices(cells, columns, extended)
+            long = columns && prices_from(columns.transform_values { |index| cells[index] if index })
+            extended_price = parse_optional_price(cells[extended]) if extended
+            prices = long || {}
+            prices[@fields.fetch(:cache_write_extended_input)] = extended_price if extended_price
+            prices
+          end
 
           def long_context_columns(header)
             columns = LONG_CONTEXT_COLUMNS.transform_values { |names| header.index { |label| names.include?(label) } }
@@ -50,8 +62,9 @@ module LlmCostTracker
           end
 
           def section
-            (@markdown[/^#### #{@tier}$(.*?)(?=^#|\z)/im, 1] ||
-              @markdown[/^### #{@tier} pricing data$(.*?)(?=^#|\z)/im, 1]).to_s
+            sections = @markdown.scan(/^#### #{@tier}$(.*?)(?=^#|\z)/im)
+            sections = @markdown.scan(/^### #{@tier} pricing data$(.*?)(?=^#|\z)/im) if sections.empty?
+            sections.join
           end
 
           def table_cells(lines)
@@ -60,8 +73,6 @@ module LlmCostTracker
 
           def prices_from(cells)
             long_input = parse_optional_price(cells[:input])
-            long_cache_read = parse_optional_price(cells[:cache_read_input])
-            long_cache_write = parse_optional_price(cells[:cache_write_input])
             long_output = parse_optional_price(cells[:output])
             return nil unless long_input && long_output
 
@@ -70,8 +81,10 @@ module LlmCostTracker
               "above_context_#{@fields.fetch(:input)}" => long_input,
               "above_context_#{@fields.fetch(:output)}" => long_output
             }
-            prices["above_context_#{@fields.fetch(:cache_read_input)}"] = long_cache_read if long_cache_read
-            prices["above_context_#{@fields.fetch(:cache_write_input)}"] = long_cache_write if long_cache_write
+            %i[cache_read_input cache_write_input cache_write_extended_input].each do |column|
+              price = parse_optional_price(cells[column])
+              prices["above_context_#{@fields.fetch(column)}"] = price if price
+            end
             prices
           end
 

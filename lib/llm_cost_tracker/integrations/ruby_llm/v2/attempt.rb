@@ -152,7 +152,7 @@ module LlmCostTracker
                usage["type"] == "duration")
           end
 
-          def bodies(own) = [own&.body, *@events&.map { |event| event[:data] }].grep(Hash)
+          def bodies(own) = [own&.body, *@events&.map { |event| event[:data] }, result.try(:raw)].grep(Hash)
 
           def response_id(own) = bodies(own).filter_map { |body| body["id"] || body["responseId"] }.first
 

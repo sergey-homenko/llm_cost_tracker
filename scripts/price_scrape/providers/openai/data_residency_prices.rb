@@ -21,7 +21,8 @@ module LlmCostTracker
           DAY_HEADING = /\A### ((?:#{Date::ABBR_MONTHNAMES.compact.join('|')})\w* \d{1,2})\s*\z/
           SNAPSHOT_DATE = /-(\d{4}-\d{2}-\d{2})\z/
           TIERS = %w[batch flex fast ultrafast].freeze
-          PRICE_FIELD = /\A(above_context_)?((?:#{TIERS.join('|')})_)?(input|output|cache_(?:read|write)_input)\z/
+          CACHE_FIELDS = %w[cache_read_input cache_write_input cache_write_extended_input].freeze
+          PRICE_FIELD = /\A(above_context_)?((?:#{TIERS.join('|')})_)?(input|output|#{CACHE_FIELDS.join('|')})\z/
 
           def self.call(models, pages) = new(pages).call(models)
 

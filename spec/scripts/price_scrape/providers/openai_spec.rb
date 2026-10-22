@@ -384,7 +384,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       )
       expect(result.models.fetch("gpt-image-2.5-flare")).to eq(result.models.fetch("gpt-image-2.5-sunburst"))
       expect(result.models.fetch("gpt-5.6-cyber")).to eq(
-        "input" => 12.5, "cache_read_input" => 1.25, "cache_write_input" => 15.625, "output" => 75.0
+        "input" => 12.5, "cache_read_input" => 1.25, "cache_write_input" => 15.625,
+        "cache_write_extended_input" => 31.25, "output" => 75.0
       )
     end
 
@@ -471,6 +472,18 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         "above_context_input" => 4.0, "above_context_output" => 15.0,
         "batch_input" => 1.0, "flex_output" => 5.0, "fast_input" => 4.0, "data_residency_input" => 2.2
       )
+    end
+
+    it "prices 12-hour cache writes from the rendered tables at short and long context, per tier" do
+      result = described_class.new.call(html: html_pages, scraped_at: "2026-10-21T00:00:00Z")
+
+      expect(result.models.fetch("gpt-6-astra")).to include(
+        "cache_write_extended_input" => 25.0, "above_context_cache_write_extended_input" => 50.0,
+        "batch_cache_write_extended_input" => 12.5, "flex_cache_write_extended_input" => 12.5,
+        "ultrafast_cache_write_extended_input" => 150.0, "data_residency_cache_write_extended_input" => 27.5
+      )
+      expect(result.models.fetch("gpt-5.6-cyber")).to include("cache_write_extended_input" => 31.25)
+      expect(result.models.fetch("gpt-5.5")).not_to have_key("cache_write_extended_input")
     end
 
     it "prices GPT-6 Astra Ultrafast at short and long context, and on US data residency" do

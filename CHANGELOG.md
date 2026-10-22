@@ -7,6 +7,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Fixed
 
 - anthropic gem 1.81+ `messages.stream` and `beta.messages.stream` are recorded once instead of twice.
+- OpenAI Responses 12-hour prompt cache writes are priced at `cache_write_extended_input` instead of the 30-minute rate.
+- RubyLLM 2.x Cohere rerank takes its input tokens from `meta.billed_units` and records the response id.
 
 ## [0.15.0] - 2026-10-10
 

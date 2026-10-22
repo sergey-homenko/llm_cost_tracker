@@ -887,6 +887,16 @@ module AccountingCases
                                             context: cohere_context)
   end
 
+  define_case "ruby_llm cohere rerank: rerank-v5.0-pro billed input tokens at the bundled rate",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    stub_json(:post, "https://api.cohere.com/v2/rerank",
+              { id: "rr_v5", results: [{ index: 1, relevance_score: 0.91 }, { index: 0, relevance_score: 0.12 }],
+                meta: { api_version: { version: "2" }, tokens: { input_tokens: 250 },
+                        billed_units: { input_tokens: 192 } } })
+    RubyLLM.rerank("ruby", %w[python ruby], model: "rerank-v5.0-pro", provider: :cohere, assume_model_exists: true,
+                                            context: cohere_context)
+  end
+
   define_case "ruby_llm cohere embed: embed-v5.0-pro billed input tokens at the bundled rate",
               instrument: :ruby_llm, skip_on_ruby_llm_1: COHERE_ON_RUBY_LLM_1 do
     cohere_embed(input_tokens: 2400)
