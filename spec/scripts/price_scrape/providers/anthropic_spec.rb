@@ -181,7 +181,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
     end
 
     it "flags a model retired everywhere as deprecated" do
-      result = scrape(html.gsub("retired, except on Google Cloud.", "retired."))
+      result = scrape(html.gsub("retired, except on Claude Models on Google Cloud (Google managed).", "retired."))
 
       expect(result.deprecated_models).to contain_exactly("claude-opus-4", "claude-3-5-haiku")
     end
@@ -189,7 +189,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
     it "raises when a retired row loses its lifecycle note or the note's wording changes" do
       expect { scrape(html.gsub("lifecycle", "status")) }
         .to raise_error(described_class::Error, /retired row "Claude Opus 4.1" has no lifecycle note/)
-      expect { scrape(html.gsub("retired, except on Google Cloud.", "still on Google Cloud.")) }
+      expect { scrape(html.gsub("retired, except on Claude Models on Google Cloud (Google managed).", "still on it.")) }
         .to raise_error(described_class::Error, /lifecycle note for Claude Opus 4 not understood/)
     end
 
@@ -241,7 +241,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
 
     it "raises when the regional endpoint premium note stops matching" do
       expect do
-        scrape(html.gsub("include a 10% premium", "include a 15% premium"))
+        scrape(html.gsub("include a 10 percent premium", "include a 15 percent premium"))
       end.to raise_error(described_class::Error, /regional endpoint premium note/)
     end
 

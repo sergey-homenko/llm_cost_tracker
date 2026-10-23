@@ -33,17 +33,17 @@ module LlmCostTracker
         SYNCHRONOUS_PRICE_FIELD = /\A(?:above_context_)?#{PRICE_DIMENSION}\z/
 
         SERVICE_CHARGE_PATTERNS = {
-          "web_search_request" => /Web search is available.*?\$\s*(\d+(?:\.\d+)?)\s+per 1,000 searches/i,
+          "web_search_request" => /Web search is available.*?\$\s*(\d+(?:\.\d+)?)(?:\s+USD)?\s+per 1,000 searches/i,
           "code_execution_hour" => /Additional usage beyond .*? billed at \$\s*(\d+(?:\.\d+)?)(?:\s+USD)?\s+per hour/i
         }.freeze
         FREE_SERVICE_CHARGE_PATTERNS = {
           "web_fetch_request" => /Web fetch usage has no additional charges/i
         }.freeze
-        REGIONAL_PREMIUM_NOTE = /10% premium over global endpoints.*?Haiku 4\.5, Opus 4\.5, and all future models/i
+        REGIONAL_PREMIUM_NOTE = /10(?:%| percent) premium over global endpoints.*?Opus 4\.5, and all future models/i
         EFFECTIVE_DATE_QUALIFIER =
           /\A(?<name>.+?)\s*(?<boundary>through|starting)\s+(?<date>[A-Z][a-z]+ \d{1,2}, \d{4})\z/
         RETIRED_NOTE = /"name":"([^"]+)","note":\{"kind":"lifecycle","label":"Retired","explanation":"([^"]*)"/
-        PARTNER_SERVED = /\Aretired(, except on [A-Z][\w ]+)?\.\z/
+        PARTNER_SERVED = /\Aretired(, except on [A-Z][\w ()]+)?\.\z/
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           @effective_on = Date.parse(scraped_at)
