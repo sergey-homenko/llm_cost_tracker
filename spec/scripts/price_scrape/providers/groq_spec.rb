@@ -183,12 +183,12 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Groq do
       )
     end
 
-    it "keeps a model priced until its announced shutdown date arrives" do
-      before_shutdown = described_class.new.call(html: html_pages, scraped_at: "2026-08-15T00:00:00Z")
+    it "keeps a model priced through its announced shutdown date and reports it the day after" do
       on_shutdown = described_class.new.call(html: html_pages, scraped_at: "2026-08-16T00:00:00Z")
+      after_shutdown = described_class.new.call(html: html_pages, scraped_at: "2026-08-17T00:00:00Z")
 
-      expect(before_shutdown.deprecated_models).not_to include("llama-3.1-8b-instant")
-      expect(on_shutdown.deprecated_models).to include("llama-3.1-8b-instant")
+      expect(on_shutdown.deprecated_models).not_to include("llama-3.1-8b-instant")
+      expect(after_shutdown.deprecated_models).to include("llama-3.1-8b-instant")
     end
 
     it "lists a model deprecated in more than one table only once" do

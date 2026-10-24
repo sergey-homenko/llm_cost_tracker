@@ -290,6 +290,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       )
     end
 
+    it "keeps a model priced through its shutdown date and reports it the day after" do
+      on_shutdown = described_class.new.call(html: html_pages, scraped_at: "2026-10-23T00:00:00Z")
+      after_shutdown = described_class.new.call(html: html_pages, scraped_at: "2026-10-24T00:00:00Z")
+
+      expect(on_shutdown.deprecated_models).not_to include("o4-mini")
+      expect(after_shutdown.deprecated_models).to include("o4-mini")
+    end
+
     it "keeps models whose shutdown date is still ahead" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-08-23T00:00:00Z")
 

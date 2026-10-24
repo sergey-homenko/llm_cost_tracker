@@ -154,7 +154,7 @@ module LlmCostTracker
             next unless model_id?(model_id)
 
             shutdown_on = shutdown_date(cells[shutdown])
-            model_id if shutdown_on && shutdown_on <= scraped_on
+            model_id if shutdown_on && shutdown_on < scraped_on
           end
         end
 

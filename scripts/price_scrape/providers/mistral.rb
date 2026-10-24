@@ -135,7 +135,7 @@ module LlmCostTracker
         def retired_card(cells, api, dates, today)
           card = cells.first&.at_css("a[href^='/models/']") or raise Error, "Mistral retired row without a model card"
           retires = cells[dates]&.text.to_s.scan(DATE)[1]
-          return unless retires && Date.strptime(retires, "%m/%d/%Y") <= today
+          return unless retires && Date.strptime(retires, "%m/%d/%Y") < today
 
           [card["href"].split("/").last, cells[api].text.strip]
         end
