@@ -579,9 +579,9 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V1, if: RubyLLM::VERSION.s
       )
 
       capture_sdk_events do |events|
-        RubyLLM.paint("a fox", model: "gpt-image-1")
+        RubyLLM.paint("a fox", model: "gpt-image-2")
         expect(events.first).to include(input_tokens: 50, output_tokens: 0, image_output_tokens: 4160)
-        expect(events.first.dig(:cost, :total)).to eq("0.16665")
+        expect(events.first.dig(:cost, :total)).to eq("0.12505")
       end
     end
 
