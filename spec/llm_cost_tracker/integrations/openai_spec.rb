@@ -770,14 +770,14 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       body = { created: 1, data: [],
                usage: { input_tokens: 50, output_tokens: 1056, total_tokens: 1106,
                         input_tokens_details: { text_tokens: 50, image_tokens: 0 } } }
-      stub_batch(model: "gpt-image-1", body: batch_line(body))
+      stub_batch(model: "gpt-image-2", body: batch_line(body))
 
       capture_sdk_events do |events|
         client.batches.retrieve("batch_done")
 
-        expect(events.first).to include(model: "gpt-image-1", pricing_mode: "batch",
+        expect(events.first).to include(model: "gpt-image-2", pricing_mode: "batch",
                                         input_tokens: 50, output_tokens: 0, image_output_tokens: 1056)
-        expect(events.first.dig(:cost, :total)).to eq("0.021245")
+        expect(events.first.dig(:cost, :total)).to eq("0.015965")
       end
     end
 

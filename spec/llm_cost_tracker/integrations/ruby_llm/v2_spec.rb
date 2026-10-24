@@ -1087,12 +1087,12 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       )
 
       capture_sdk_events do |events|
-        RubyLLM.paint("a cat", model: "gpt-image-1", count: 2)
-        2.times { RubyLLM.paint("a fox", model: "gpt-image-1") }
+        RubyLLM.paint("a cat", model: "gpt-image-2", count: 2)
+        2.times { RubyLLM.paint("a fox", model: "gpt-image-2") }
         expect(events.map do |event|
           event.values_at(:input_tokens, :image_input_tokens, :output_tokens, :image_output_tokens)
         end).to eq([[20, 30, 40, 160], [50, 0, 0, 4160], [0, 0, 0, 0]])
-        expect(events[1].dig(:cost, :total)).to eq("0.16665")
+        expect(events[1].dig(:cost, :total)).to eq("0.12505")
         expect(events.last).to include(usage_source: "unknown", cost_status: "unknown")
       end
     end

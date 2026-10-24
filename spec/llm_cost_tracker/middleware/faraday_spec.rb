@@ -1327,11 +1327,11 @@ RSpec.describe LlmCostTracker::Middleware::Faraday do
       )
 
       event = ruby_openai_post(
-        "/images/edits", { model: "gpt-image-1", image: upload("\x89PNG".b, "a.png"), prompt: "blue" }, multipart: true
+        "/images/edits", { model: "gpt-image-2", image: upload("\x89PNG".b, "a.png"), prompt: "blue" }, multipart: true
       )
 
-      expect(event).to include(model: "gpt-image-1", cost_status: "complete")
-      expect(total_cost(event)).to eq(BigDecimal("0.04649"))
+      expect(event).to include(model: "gpt-image-2", cost_status: "complete")
+      expect(total_cost(event)).to eq(BigDecimal("0.03513"))
     end
 
     it "does not read multipart uploads to hosts it does not track" do
