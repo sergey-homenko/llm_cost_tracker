@@ -16,7 +16,7 @@ module LlmCostTracker
           def token_usage(usage, model: nil, default_to_image: ModelFamilies.image_output?(model))
             cache_read = cache_read_input_tokens(usage)
             cache_write = cache_write_input_tokens(usage)
-            extended = cache_write_extended_input_tokens(usage).clamp(0, cache_write)
+            extended = cache_write_extended_input_tokens(usage).clamp(0, [cache_write, 0].max)
             Usage::TokenUsage.build(
               **input_counts(usage, cached: cache_read + cache_write),
               **output_counts(usage, default_to_image: default_to_image),
@@ -52,7 +52,8 @@ module LlmCostTracker
           def cache_write_input_tokens(usage) = detail(usage, INPUT_DETAIL_KEYS, :cache_write_tokens)
 
           def cache_write_extended_input_tokens(usage)
-            detail(usage, INPUT_DETAIL_KEYS, :cache_write_tokens_details, :ttl_12h_tokens)
+            details = INPUT_DETAIL_KEYS.filter_map { |key| usage.dig(key, :cache_write_tokens_details) }.first
+            details.is_a?(Hash) ? details[:ttl_12h_tokens].to_i : 0
           end
 
           def hidden_output_tokens(usage)    = detail(usage, OUTPUT_DETAIL_KEYS, :reasoning_tokens)

@@ -169,10 +169,10 @@ module LlmCostTracker
 
         def listed_fields(id, entry)
           stem = id[/\A(.+)-(?:latest|\d{4})\z/, 1]
-          latest_stem = stem.delete_prefix("mistral-") if id.end_with?("-latest")
           card = @cards_by_name[id] || MODEL_CARD.match(entry["source"].to_s)&.[](:card) || @cards_by_stem[stem]
-          card ||= @cards_by_stem[latest_stem]
-          @listed.fetch(card, {})
+          card ||= @cards_by_stem[stem.delete_prefix("mistral-")] if id.end_with?("-latest")
+          fields = @listed.fetch(card, {})
+          entry["mode"] == "ocr" && fields.key?("input") ? { "ocr_page" => fields["input"] } : fields
         end
 
         def cards_by_stem(cards)
