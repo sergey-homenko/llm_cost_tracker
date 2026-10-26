@@ -43,6 +43,13 @@ module AccountingCases
 
   def cohere_context = RubyLLM.context { |config| config.cohere_api_key = "test-cohere" }
 
+  def cohere_retry_context
+    RubyLLM.context do |config|
+      config.cohere_api_key = "test-cohere"
+      config.retry_interval = config.retry_interval_randomness = 0
+    end
+  end
+
   def cohere_message(id, usage)
     { id: id, finish_reason: "COMPLETE", message: { role: "assistant", content: [{ type: "text", text: "hi" }] },
       usage: usage }
@@ -897,6 +904,20 @@ module AccountingCases
                                             context: cohere_context)
   end
 
+  define_case "ruby_llm cohere rerank: rerank-v5.0-pro after a 429 and a 500, billed once",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    WebMock.stub_request(:post, "https://api.cohere.com/v2/rerank").to_return(
+      { status: 429, body: JSON.generate(message: "Rate limit reached"), headers: JSON_HEADERS },
+      { status: 500, body: JSON.generate(message: "Internal error"), headers: JSON_HEADERS },
+      { status: 200, headers: JSON_HEADERS,
+        body: JSON.generate(id: "rr_v5r", results: [{ index: 1, relevance_score: 0.91 }],
+                            meta: { api_version: { version: "2" }, tokens: { input_tokens: 250 },
+                                    billed_units: { input_tokens: 192 } }) }
+    )
+    RubyLLM.rerank("ruby", %w[python ruby], model: "rerank-v5.0-pro", provider: :cohere, assume_model_exists: true,
+                                            context: cohere_retry_context)
+  end
+
   define_case "ruby_llm cohere embed: embed-v5.0-pro billed input tokens at the bundled rate",
               instrument: :ruby_llm, skip_on_ruby_llm_1: COHERE_ON_RUBY_LLM_1 do
     cohere_embed(input_tokens: 2400)
@@ -924,6 +945,19 @@ module AccountingCases
                 meta: { api_version: { version: "2" }, billed_units: { pages: 1 } } })
     RubyLLM.ocr("https://example.com/invoice.png", model: "parse-v5.0", provider: :cohere, assume_model_exists: true,
                                                    context: cohere_context)
+  end
+
+  define_case "ruby_llm cohere ocr: parse-v5.0 after a 500, the failed attempt without the success's response id",
+              instrument: :ruby_llm, skip_on_ruby_llm_1: RUBY_LLM_2_ONLY do
+    WebMock.stub_request(:post, "https://api.cohere.com/v2/parse").to_return(
+      { status: 500, body: JSON.generate(message: "Internal error"), headers: JSON_HEADERS },
+      { status: 200, headers: JSON_HEADERS,
+        body: JSON.generate(id: "parse_v5r",
+                            pages: [{ type: "markdown", index: 0, markdown: { content: "# Invoice", images: [] } }],
+                            meta: { api_version: { version: "2" }, billed_units: { pages: 1 } }) }
+    )
+    RubyLLM.ocr("https://example.com/invoice.png", model: "parse-v5.0", provider: :cohere, assume_model_exists: true,
+                                                   context: cohere_retry_context)
   end
 
   define_case "ruby_llm cohere rerank: rerank-v3.5 without a price",

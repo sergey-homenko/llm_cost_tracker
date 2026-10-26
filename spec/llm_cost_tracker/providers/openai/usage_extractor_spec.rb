@@ -101,6 +101,17 @@ RSpec.describe LlmCostTracker::Providers::Openai::UsageExtractor do
       expect(result.input_tokens).to eq(1_000)
     end
 
+    it "records a malformed cache-write breakdown without 12-hour writes instead of failing" do
+      negative = described_class.token_usage({ input_tokens: 100, output_tokens: 5,
+                                               input_tokens_details: { cache_write_tokens: -3 } })
+      scalar = described_class.token_usage({ input_tokens: 100, output_tokens: 5,
+                                             input_tokens_details: { cache_write_tokens: 40,
+                                                                     cache_write_tokens_details: 10 } })
+
+      expect(negative.cache_write_extended_input_tokens).to eq(0)
+      expect(scalar).to have_attributes(cache_write_input_tokens: 40, cache_write_extended_input_tokens: 0)
+    end
+
     it "uses output_tokens_details image_tokens for the image/text split when present" do
       usage = { input_tokens: 0, output_tokens: 100, output_tokens_details: { image_tokens: 60, text_tokens: 40 } }
       result = described_class.token_usage(usage)

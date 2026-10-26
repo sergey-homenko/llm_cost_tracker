@@ -83,6 +83,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     expect(mistral.keys).not_to include("mistral-ocr-latest")
   end
 
+  it "prices Mistral OCR per 1,000 pages when the pricing page drops the unit from its cells" do
+    unitless = fixture("mistral_pricing.html").sub(%r{<tr><td><a href="/models/ocr-4-0">.*?</tr>}, "")
+                                              .gsub(" /1000 Pages", "")
+    models = mistral_class.new.call(html: mistral_pages.merge(mistral_class::PRICING_SOURCE_URL => unitless),
+                                    scraped_at: "2026-10-05T06:00:00Z").models
+
+    expect(models.slice("mistral-ocr-4-1", "mistral-ocr-4", "mistral-ocr-latest").values)
+      .to eq([{ "ocr_page" => 4.0 }] * 3)
+  end
+
   it "keeps only the models of its own provider its pricing page prices, free ones included" do
     expect(mistral.keys).to include("labs-leanstral-1-5", "mistral-moderation-2603", "voxtral-mini-2602")
     expect(mistral.keys).not_to include("voxtral-mini-transcribe-realtime-2602", "deepseek-flash", "gpt-4o")

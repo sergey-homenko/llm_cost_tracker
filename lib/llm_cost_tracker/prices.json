@@ -13,9 +13,6 @@
       "gemini/gemini-3.1-flash-lite-preview": "2026-10-05",
       "gemini/gemini-3.7-flash": "2026-10-11",
       "gemini/gemini-omni-flash-preview": "2026-10-23",
-      "mistral/mistral-ocr-4": "2026-10-23",
-      "mistral/mistral-ocr-4-1": "2026-10-23",
-      "mistral/mistral-ocr-latest": "2026-10-23",
       "openrouter/ai21/jamba-large-1.7": "2026-10-05",
       "openrouter/aion-labs/aion-1.0": "2026-10-05",
       "openrouter/aion-labs/aion-1.0-mini": "2026-10-05",
@@ -201,7 +198,7 @@
       "https://docs.x.ai/developers/pricing.md"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-10-25"
+    "updated_at": "2026-10-26"
   },
   "models": {
     "anthropic/claude-3-5-haiku": {
@@ -2337,6 +2334,9 @@
       "priority_data_residency_output": 0.0,
       "priority_input": 0.0,
       "priority_output": 0.0
+    },
+    "mistral/mistral-ocr-2512": {
+      "ocr_page": 2.0
     },
     "mistral/mistral-ocr-4": {
       "ocr_page": 4.0
