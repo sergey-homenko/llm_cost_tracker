@@ -2,7 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.15.1] - 2026-10-26
+
+### Changed
+
+- Bundled prices add Cohere Rerank 5, Gemini 4 Argon, Mistral OCR 3, Voxtral 3 and Voxtral Realtime, and OpenAI 12-hour cache-write and xAI batch rates, double Mistral Large 4 rates after its sale ended, and drop the OpenAI models shut down on 2026-10-23.
 
 ### Fixed
 
