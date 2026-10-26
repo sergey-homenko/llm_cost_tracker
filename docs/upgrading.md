@@ -1,5 +1,23 @@
 # Upgrading
 
+## v0.15.0 → v0.15.1
+
+There are no migrations. Check these after upgrading:
+
+- **Refresh prices.** A local `config.pricing.file` overrides the bundled entry of every model it lists, so OpenAI 12-hour prompt cache writes are recorded `partial` until `bin/rails llm_cost_tracker:prices:refresh` adds their `cache_write_extended_input` rates.
+- **Anthropic streams recorded twice.** With the anthropic gem 1.81 or later, 0.15.0 recorded each `messages.stream` and `beta.messages.stream` call twice. To keep one row of each pair, run this in a console, then `bin/rails llm_cost_tracker:rebuild_rollups` if `budgets.totals_source` is `:cache`:
+
+  ```ruby
+  keys = %i[provider provider_response_id model input_tokens output_tokens cache_read_input_tokens
+            cache_write_input_tokens cache_write_extended_input_tokens total_cost]
+  LlmCostTracker::Call.where(stream: true).with_provider_response_id.group(*keys).having("COUNT(*) > 1")
+                      .pluck(*keys).each do |values|
+    LlmCostTracker::Call.where(keys.zip(values).to_h).order(:id).offset(1).destroy_all
+  end
+  ```
+- **OpenAI 12-hour cache writes recorded before 0.15.1** are priced at the 30-minute rate, and their stored token counts have no 12-hour split, so `reprice` cannot correct them.
+- **Cohere rerank through RubyLLM 2.x before 0.15.1** stored Cohere's processed token count instead of the billed one, so `backfill_unknown_pricing` and `reprice` price those Rerank 5 calls from it.
+
 ## v0.14.2 → v0.15.0
 
 There are no migrations. Check these after upgrading:
