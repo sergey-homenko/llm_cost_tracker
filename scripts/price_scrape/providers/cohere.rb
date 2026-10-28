@@ -25,7 +25,7 @@ module LlmCostTracker
           \A(?<name>.+?)\s(?:pricing\sis|models\s\((?<sizes>[^)]+)\)\son\sthe\sAPI\sare\scharged\sat)
           \s\$(?<input>\d+(?:\.\d+)?)/1M\stokens\sfor\sinput\sand\s\$(?<output>\d+(?:\.\d+)?)/1M\stokens\sfor\soutput\b
         }x
-        RELEASE_SUFFIX = /-\d+-\d+\z/
+        RELEASE_SUFFIX = /-\d+[-.]\d+\z/
         STATUS = /\A(?:Live\z|Legacy\b|Deprecated\b|Retired\b)/
         UNCONFIRMED_NOTE = "- `cohere`: models.dev was unreachable or invalid, so no LiteLLM-only row was written"
 

@@ -61,7 +61,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Cohere do
 
     expect(result.models.fetch("command-a-03-2025")).to eq("input" => 2.5, "output" => 10.0, "_source" => "litellm")
     expect(result.models.fetch("command-r-08-2024")).to eq("input" => 0.15, "output" => 0.6)
-    expect(result.models).not_to include("command-a-plus-05-2026", "north-mini-code-1-0", "embed-v4.0", "rerank-v3.5")
+    expect(result.models).not_to include("command-a-plus-05-2026", "north-mini-code-1.0", "embed-v4.0", "rerank-v3.5")
     expect(result.notes).to be_empty
   end
 
