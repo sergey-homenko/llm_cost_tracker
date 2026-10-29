@@ -47,7 +47,7 @@ module LlmCostTracker
             patch_target("OpenAI::Resources::Audio::Translations", with: TranslationsPatch, optional: true),
             patch_target("OpenAI::Resources::Audio::Speech", with: SpeechPatch, optional: true),
             patch_target("OpenAI::Resources::Moderations", with: ModerationsPatch, optional: true),
-            patch_target("OpenAI::Resources::Decisions", with: CreatePatch, optional: true),
+            patch_target("OpenAI::Resources::Decisions", with: CreatePatch, optional: true, since: "0.101.0"),
             patch_target("OpenAI::Resources::Batches", with: BatchesPatch, optional: true)
           ]
         end
