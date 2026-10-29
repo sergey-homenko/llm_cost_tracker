@@ -361,6 +361,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     )
   end
 
+  it "prices an embedding model whose table lists one input price, and fails on one without a known input row" do
+    models = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
+
+    expect(models.fetch("gemini-embedding-001")).to eq("input" => 0.15, "batch_input" => 0.075)
+    unnamed = html.sub(%r{(>gemini-embedding-001</code>.*?)<td>Input price</td>}m, '\1<td>Input cost</td>')
+    expect { scrape(unnamed) }.to raise_error(described_class::Error, /Gemini text pricing rows not found/)
+  end
+
   it "keeps an announced price change under a dated key until the date, then as the price itself" do
     before_change = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
     after_change = scrape(html, scraped_at: "2027-01-01T08:00:00Z").models

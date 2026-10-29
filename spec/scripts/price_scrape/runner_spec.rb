@@ -30,6 +30,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
   before do
     stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic.source_url)
       .to_return(status: 200, body: html, headers: { "Content-Type" => "text/html; charset=utf-8" })
+    stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Anthropic::VertexLongContext::URL)
+      .to_return(status: 200, body: fixture("vertex_pricing.html"))
     stub_request(:get, LlmCostTracker::Pricing::Scrape::Providers::Gemini::VERTEX_URL)
       .to_return(status: 200, body: fixture("vertex_pricing.html"))
   end

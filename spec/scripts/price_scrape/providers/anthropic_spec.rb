@@ -7,7 +7,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Anthropic do
   let(:fixture_path) { File.expand_path("../../../fixtures/scrape/anthropic_pricing.html", __dir__) }
   let(:html) { File.read(fixture_path, encoding: "utf-8") }
   let(:vertex_html) { File.read(fixture_path.sub("anthropic_pricing", "vertex_pricing"), encoding: "utf-8") }
-  let(:vertex_url) { LlmCostTracker::Pricing::Scrape::Providers::Gemini::VERTEX_URL }
+  let(:vertex_url) { described_class::VertexLongContext::URL }
 
   def scrape(page = html, vertex: vertex_html, **)
     described_class.new.call(html: { described_class.source_url => page, vertex_url => vertex }, **)

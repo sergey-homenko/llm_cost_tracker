@@ -7,6 +7,7 @@ module LlmCostTracker
     module Providers
       class Anthropic < Base
         class VertexLongContext
+          URL = "https://cloud.google.com/model-garden/partner-models/pricing"
           ROWS = {
             "Input" => "input", "Output" => "output", "5m Cache Write" => "cache_write_input",
             "1h Cache Write" => "cache_write_extended_input", "Cache Hit" => "cache_read_input"

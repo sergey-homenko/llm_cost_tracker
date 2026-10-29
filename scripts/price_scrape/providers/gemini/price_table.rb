@@ -23,7 +23,7 @@ module LlmCostTracker
             "cache_storage_token_hour" => [/\AContext caching/, %r{\$([\d.]+)\s*/\s*1,000,000 tokens per hour}]
           }.freeze
           EMBEDDING_ROWS = {
-            "Text input price" => "input", "Image input price" => "image_input",
+            "Input price" => "input", "Text input price" => "input", "Image input price" => "image_input",
             "Audio input price" => "audio_input", "Video input price" => "video_input"
           }.freeze
 
@@ -36,7 +36,7 @@ module LlmCostTracker
           end
 
           def prices(prefix)
-            prices = @rows.key?("Text input price") ? embedding_prices : token_prices
+            prices = row("Output price") ? token_prices : embedding_prices
             prices.transform_keys do |field|
               field == CONTEXT_THRESHOLD ? field : field.sub(/\A(above_context_)?/, "\\1#{prefix}")
             end
@@ -52,6 +52,8 @@ module LlmCostTracker
           private
 
           def embedding_prices
+            raise Error, "Gemini text pricing rows not found" unless @rows.keys.intersect?(EMBEDDING_ROWS.keys)
+
             EMBEDDING_ROWS.each_with_object({}) do |(label, field), prices|
               prices[field] = parse_price(@rows[label]) if @rows[label]&.match?(PRICED)
             end

@@ -23,7 +23,7 @@ module LlmCostTracker
         CURRENT_LINE = /through \w+ \d{1,2}, \d{4}\.?\z/
         TEXT_PRICED_AS = /Text input and output\s+is priced the same as/
         UNCAPTURED_MODEL = /(?<!transcribe)-live\b|-(?:streaming|native-audio)\b/
-        VERTEX_URL = "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"
+        VERTEX_URL = "https://cloud.google.com/model-garden/pricing"
         SOURCE_URLS = [source_url, VERTEX_URL].freeze
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)

@@ -5,7 +5,6 @@ require "nokogiri"
 require "time"
 
 require_relative "base"
-require_relative "gemini"
 require_relative "anthropic/price_table"
 require_relative "anthropic/vertex_long_context"
 
@@ -18,7 +17,7 @@ module LlmCostTracker
         max_price 1000.0
         anchors "claude-fable-5", "claude-opus-4-7", "claude-sonnet-4-6"
 
-        SOURCE_URLS = [source_url, Gemini::VERTEX_URL].freeze
+        SOURCE_URLS = [source_url, VertexLongContext::URL].freeze
         DATA_RESIDENCY_MULTIPLIER = 1.1
         BATCH_MULTIPLIER = 0.5
         BASE_TABLE = ["Base tokens Input", "5m writes", "Hits", "Base tokens Output"].freeze
@@ -97,7 +96,7 @@ module LlmCostTracker
         end
 
         def with_long_context(models, html)
-          vertex = Nokogiri::HTML(html.fetch(Gemini::VERTEX_URL))
+          vertex = Nokogiri::HTML(html.fetch(VertexLongContext::URL))
           VertexLongContext.new(vertex, method(:normalize_model_id)).call(models)
         end
 
