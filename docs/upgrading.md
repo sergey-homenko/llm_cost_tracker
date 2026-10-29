@@ -1,5 +1,11 @@
 # Upgrading
 
+## v0.15.1 → v0.15.2
+
+There are no migrations.
+
+- **RubyLLM 2.x OpenAI judgments recorded before 0.15.2** include their output tokens in the cost, which OpenAI does not bill. `reprice` prices the stored token counts, so it keeps that cost.
+
 ## v0.15.0 → v0.15.1
 
 There are no migrations. Check these after upgrading:

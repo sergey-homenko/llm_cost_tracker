@@ -2,7 +2,11 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.15.2] - 2026-10-29
+
+### Changed
+
+- Bundled prices add OpenAI GPT-6.1 Terra.
 
 ### Fixed
 
