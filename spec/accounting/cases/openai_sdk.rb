@@ -196,6 +196,11 @@ module AccountingCases
     openai_client.moderations.create(input: "hello")
   end
 
+  define_case "openai sdk decisions: gpt-6-luna cache reads and writes with output unbilled", instrument: :openai do
+    stub_json(:post, "#{OPENAI_API}/decisions", decision(decision_usage(1_000, 6, cached: 200, written: 100)))
+    openai_client.decisions.create(model: "gpt-6-luna", input: "Refund my order", questions: DECISION_QUESTIONS)
+  end
+
   define_case "openai sdk chat stream helper: gpt-4o with cached tokens", instrument: :openai do
     stub_sse(:post, "#{OPENAI_API}/chat/completions",
              chat_stream_body(id: "chatcmpl_ss1", model: "gpt-4o", usage: chat_usage(1000, 200, cached: 300)))

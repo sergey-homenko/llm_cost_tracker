@@ -23,6 +23,7 @@ module AccountingCases
   COHERE_CHAT = "https://api.cohere.com/v2/chat"
   SPEECH_INPUT = "Hello, welcome to RubyLLM!"
   USER_MESSAGES = [{ role: "user", content: "hi" }].freeze
+  DECISION_QUESTIONS = [{ type: :predicate, name: "refund", instructions: "Is this a refund?" }].freeze
   XAI_AND_MISTRAL_HOSTS = lambda do |config|
     config.capture.openai_compatible_providers.merge!("api.x.ai" => "xai", "us.api.x.ai" => "xai",
                                                       "api.eu.mistral.ai" => "mistral")
@@ -129,6 +130,15 @@ module AccountingCases
       output_tokens: output, output_tokens_details: { reasoning_tokens: reasoning },
       total_tokens: input + output
     }
+  end
+
+  def decision_usage(input, output, cached:, written:)
+    { input_tokens: input, input_tokens_details: { cached_tokens: cached, cache_write_tokens: written },
+      output_tokens: output, output_tokens_details: { reasoning_tokens: output }, total_tokens: input + output }
+  end
+
+  def decision(usage)
+    { model: "gpt-6-luna", answers: [{ type: "predicate", name: "refund", probability: 0.9 }], usage: usage }
   end
 
   def output_message(id)
