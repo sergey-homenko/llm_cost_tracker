@@ -2,6 +2,13 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- OpenAI Decisions API calls through the official openai gem and Faraday are recorded.
+- OpenAI Decisions output tokens are not billed, RubyLLM 2.x judgments included, as OpenAI prices them.
+
 ## [0.15.1] - 2026-10-26
 
 ### Changed

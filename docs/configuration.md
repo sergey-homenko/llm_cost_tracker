@@ -52,7 +52,7 @@ Built-in integration names:
 
 | Name | Minimum SDK | Captured calls |
 | --- | --- | --- |
-| `:openai` | `openai >= 0.59.0` | Responses (`responses.compact` and `client.beta.responses` included), Chat Completions, Embeddings, Images, Audio (speech, transcriptions, translations), Moderations, Batches, and the streaming helpers for each, plus legacy Completions `create` |
+| `:openai` | `openai >= 0.59.0` | Responses (`responses.compact` and `client.beta.responses` included), Chat Completions, Embeddings, Images, Audio (speech, transcriptions, translations), Moderations, Decisions, Batches, and the streaming helpers for each, plus legacy Completions `create` |
 | `:anthropic` | `anthropic >= 1.36.0` | Messages and Message Batches, plus their beta helpers |
 | `:ruby_llm` | `ruby_llm >= 1.15.0` | On 1.x, provider chat, embedding, transcription, image, and moderation calls. On 2.x, every provider attempt in RubyLLM's `usage.ruby_llm` event (chat, embedding, image, transcription, moderation, speech, OCR, rerank, judgment, and later operations, but not video generation or research jobs), and each result `RubyLLM::Batch#messages` or `#results` returns |
 

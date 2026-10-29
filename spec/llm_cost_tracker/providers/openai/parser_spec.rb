@@ -49,7 +49,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(described_class.match?(anthropic_messages_url)).to be false
     end
 
-    it "matches OpenAI image, audio, and moderations endpoints" do
+    it "matches OpenAI image, audio, moderations, and decisions endpoints" do
       %w[
         /v1/images/generations
         /v1/images/edits
@@ -58,6 +58,7 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
         /v1/audio/translations
         /v1/audio/speech
         /v1/moderations
+        /v1/decisions
       ].each do |path|
         url = URI::HTTPS.build(host: "api.openai.com", path: path).to_s
         expect(described_class.match?(url)).to be(true), "expected match? to be true for #{path}"
@@ -134,6 +135,24 @@ RSpec.describe LlmCostTracker::Providers::Openai::Parser do
       expect(result.token_usage.input_tokens).to eq(150)
       expect(result.token_usage.output_tokens).to eq(42)
       expect(result.provider_response_id).to eq("chatcmpl_123")
+    end
+
+    it "parses a Decisions response with its cache split and its output tokens unbilled" do
+      result = parser.parse(
+        request_url: "https://api.openai.com/v1/decisions",
+        request_body: { model: "gpt-6-luna", input: "Refund my order", questions: [] }.to_json,
+        response_status: 200,
+        response_body: {
+          model: "gpt-6-luna", answers: [],
+          usage: { input_tokens: 1_000, input_tokens_details: { cached_tokens: 200, cache_write_tokens: 100 },
+                   output_tokens: 6, output_tokens_details: { reasoning_tokens: 6 }, total_tokens: 1_006 }
+        }.to_json
+      )
+
+      expect(result.token_usage).to have_attributes(
+        input_tokens: 700, cache_read_input_tokens: 200, cache_write_input_tokens: 100, output_tokens: 0,
+        hidden_output_tokens: 0, total_tokens: 1_000
+      )
     end
 
     it "captures non-standard service tiers as pricing modes" do

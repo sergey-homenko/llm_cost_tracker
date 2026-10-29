@@ -1060,6 +1060,23 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    it "prices an OpenAI judgment's input and cache tokens at gpt-6-luna rates and leaves its output unbilled",
+       if: RubyLLM.respond_to?(:judge) do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/decisions").to_return(reply(
+        model: "gpt-6-luna", answers: [{ type: "predicate", name: "refund", probability: 0.9 }],
+        usage: { input_tokens: 1_000, input_tokens_details: { cached_tokens: 200, cache_write_tokens: 100 },
+                 output_tokens: 6, output_tokens_details: { reasoning_tokens: 6 }, total_tokens: 1_006 }
+      ))
+      questions = { refund: { type: :probability, instructions: "Is this a refund?" } }
+
+      capture_sdk_events do |events|
+        RubyLLM.judge("Refund my order", model: "gpt-6-luna", provider: :openai, questions: questions)
+        expect(events.sole.values_at(:input_tokens, :cache_read_input_tokens, :cache_write_input_tokens,
+                                     :output_tokens)).to eq([700, 200, 100, 0])
+        expect(costs(events)).to eq(["0.0000845"])
+      end
+    end
+
     it "prices a Gemini embedding's text, PDF and video tokens from the raw usageMetadata RubyLLM does not report" do
       details = [{ modality: "TEXT", tokenCount: 5 }, { modality: "DOCUMENT", tokenCount: 258 },
                  { modality: "VIDEO", tokenCount: 2112 }]
