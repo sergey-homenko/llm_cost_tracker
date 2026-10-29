@@ -397,6 +397,31 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
     end
   end
 
+  describe "decisions.create" do
+    it "records input and cache tokens at gpt-6-luna rates and leaves the output unbilled" do
+      WebMock.stub_request(:post, "https://api.openai.com/v1/decisions").to_return(
+        headers: { "Content-Type" => "application/json" },
+        body: JSON.generate(
+          model: "gpt-6-luna", answers: [{ type: "predicate", name: "refund", probability: 0.9 }],
+          usage: { input_tokens: 1_000, input_tokens_details: { cached_tokens: 200, cache_write_tokens: 100 },
+                   output_tokens: 6, output_tokens_details: { reasoning_tokens: 6 }, total_tokens: 1_006 }
+        )
+      )
+
+      capture_sdk_events do |events|
+        client.decisions.create(model: "gpt-6-luna", input: "Refund my order",
+                                questions: [{ type: :predicate, name: "refund", instructions: "Is this a refund?" }])
+
+        expect(events.sole).to include(
+          provider: "openai", model: "gpt-6-luna", input_tokens: 700, cache_read_input_tokens: 200,
+          cache_write_input_tokens: 100, output_tokens: 0, hidden_output_tokens: 0, total_tokens: 1_000,
+          usage_source: "sdk_response"
+        )
+        expect(events.sole.dig(:cost, :total)).to eq("0.0000845")
+      end
+    end
+  end
+
   describe "images.generate" do
     it "records image tokens split from text input on real SDK response" do
       stub_sdk_json(:post, "https://api.openai.com/v1/images/generations",

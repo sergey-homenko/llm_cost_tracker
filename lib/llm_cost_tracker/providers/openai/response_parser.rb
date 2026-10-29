@@ -14,6 +14,7 @@ module LlmCostTracker
         PENDING_STATUSES = %w[queued in_progress].freeze
         RETRIEVE_PATH_PATTERN = %r{/(?:responses|agent)/resp_}
         TRANSCRIPTION_PATH_PATTERN = %r{/audio/(?:transcriptions|translations)\z}
+        UNBILLED_DECISION_USAGE = %i[output_tokens output_tokens_details total_tokens].freeze
 
         class << self
           def included(base) = base.include(StreamParser)
@@ -29,7 +30,7 @@ module LlmCostTracker
           end
 
           def event_from_response(response:, request:, provider:, host:, usage_source:, pricing_mode: nil)
-            usage = response["usage"]&.deep_symbolize_keys
+            usage = billed_usage(response, provider)
             return nil if usage.nil? || pending?(response)
 
             model = response["model"] || request["model"]
@@ -73,6 +74,15 @@ module LlmCostTracker
           def pending?(response)
             PENDING_STATUSES.include?(response["status"].to_s)
           end
+
+          def billed_usage(response, provider)
+            usage = response["usage"]&.deep_symbolize_keys
+            return usage unless usage && decision?(response, provider)
+
+            usage.except(*UNBILLED_DECISION_USAGE)
+          end
+
+          def decision?(response, provider) = provider.to_s == "openai" && response.key?("answers")
         end
 
         def parse(request_url:, request_body:, response_status:, response_body:, **)
