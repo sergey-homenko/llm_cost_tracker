@@ -250,6 +250,12 @@ module AccountingCases
                  { id: "modr_fa", model: "omni-moderation-latest", results: [] })
   end
 
+  define_case "faraday openai decisions: gpt-6-luna on the eu host above the long-context threshold" do
+    faraday_json("https://eu.api.openai.com/v1/decisions",
+                 { model: "gpt-6-luna", input: "x", questions: DECISION_QUESTIONS },
+                 decision(decision_usage(300_000, 4, cached: 100_000, written: 50_000)))
+  end
+
   define_case "faraday openai chat: gpt-5.4 on the eu host with cached tokens" do
     faraday_json("https://eu.api.openai.com/v1/chat/completions", { model: "gpt-5.4", messages: [] },
                  chat_completion(id: "chatcmpl_eu", model: "gpt-5.4", usage: chat_usage(10_000, 1000, cached: 2000)))

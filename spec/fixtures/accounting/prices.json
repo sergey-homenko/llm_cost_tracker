@@ -1235,6 +1235,25 @@
       "ultrafast_input": 60.0,
       "ultrafast_output": 300.0
     },
+    "openai/gpt-6-luna": {
+      "_context_price_threshold_tokens": 272000,
+      "above_context_cache_read_input": 0.02,
+      "above_context_cache_write_input": 0.25,
+      "above_context_data_residency_cache_read_input": 0.022,
+      "above_context_data_residency_cache_write_input": 0.275,
+      "above_context_data_residency_input": 0.22,
+      "above_context_data_residency_output": 0.825,
+      "above_context_input": 0.2,
+      "above_context_output": 0.75,
+      "cache_read_input": 0.01,
+      "cache_write_input": 0.125,
+      "data_residency_cache_read_input": 0.011,
+      "data_residency_cache_write_input": 0.1375,
+      "data_residency_input": 0.11,
+      "data_residency_output": 0.55,
+      "input": 0.1,
+      "output": 0.5
+    },
     "openai/gpt-audio": {
       "audio_input": 32.0,
       "audio_output": 64.0,
