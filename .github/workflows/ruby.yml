@@ -21,7 +21,7 @@ jobs:
           POSTGRES_PASSWORD: lct
           POSTGRES_DB: postgres
         ports:
-          - 55432:5432
+          - 15432:5432
         options: >-
           --health-cmd "pg_isready -U lct -d postgres"
           --health-interval 10s
@@ -44,7 +44,7 @@ jobs:
     env:
       BUNDLE_GEMFILE: ${{ github.workspace }}/${{ matrix.gemfile }}
       LCT_TEST_HOST: 127.0.0.1
-      LCT_TEST_PORT: 55432
+      LCT_TEST_PORT: 15432
       LCT_TEST_USERNAME: lct
       LCT_TEST_PASSWORD: lct
       LCT_TEST_ADMIN_DATABASE: postgres
@@ -135,7 +135,7 @@ jobs:
           POSTGRES_PASSWORD: lct
           POSTGRES_DB: postgres
         ports:
-          - 55432:5432
+          - 15432:5432
         options: >-
           --health-cmd "pg_isready -U lct -d postgres"
           --health-interval 10s
@@ -159,7 +159,7 @@ jobs:
         include:
           - name: PostgreSQL
             adapter: postgresql
-            port: 55432
+            port: 15432
             username: lct
             password: lct
             admin_database: postgres
