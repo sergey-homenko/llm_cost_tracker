@@ -4952,9 +4952,9 @@
       "output": 0.12
     },
     "openrouter/google/gemma-4-26b-a4b-it": {
-      "cache_read_input": 0.05,
-      "input": 0.1,
-      "output": 0.3
+      "cache_read_input": 0.042,
+      "input": 0.083,
+      "output": 0.25
     },
     "openrouter/google/gemma-4-31b-it": {
       "input": 0.2,
@@ -5448,8 +5448,8 @@
       "output": 4.0
     },
     "openrouter/moonshotai/kimi-k3": {
-      "cache_read_input": 0.19,
-      "input": 0.2,
+      "cache_read_input": 0.182,
+      "input": 0.192,
       "output": 16.0
     },
     "openrouter/moonshotai/kimi-k3.1-pro": {
@@ -6079,9 +6079,9 @@
       "output": 30.0
     },
     "openrouter/openai/gpt-oss-120b": {
-      "cache_read_input": 0.075,
-      "input": 0.15,
-      "output": 0.6
+      "cache_read_input": 0.022,
+      "input": 0.024,
+      "output": 0.089
     },
     "openrouter/openai/gpt-oss-120b:batch": {
       "input": 0.0296,
