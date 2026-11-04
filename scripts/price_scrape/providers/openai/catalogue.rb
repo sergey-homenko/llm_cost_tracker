@@ -12,18 +12,20 @@ module LlmCostTracker
           ENTRY_NAME = /\A- \[([^\]]+)\]/
           ENTRY_PAGE_ID = %r{\A- \[[^\]]+\]\(/api/docs/models/([^()/]+)\.md\)}
           ENTRY_MODEL_ID = /Model ID: `([^`]+)`/
+          ANNOUNCED_MODEL_ID = /(?:^|· )Model: ([\w.-]+)/
 
-          def initialize(markdown)
+          def initialize(markdown, changelog = nil)
             @entries = markdown.to_s.each_line.with_object({}) do |line, entries|
               name = line[ENTRY_NAME, 1]
               model_id = line[ENTRY_PAGE_ID, 1] || line[ENTRY_MODEL_ID, 1]
               entries[name] = model_id if name && model_id
             end
+            @announced = changelog.to_s.scan(ANNOUNCED_MODEL_ID).flatten.uniq
           end
 
           def model_id(display_name)
             name = display_name.to_s.strip.sub(QUALIFIER, "")
-            model_ids = @entries.values
+            model_ids = @entries.values | @announced
             families = model_ids + @entries.keys.map(&:downcase)
             extends = name.match?(DeprecatedModels::MODEL_ID) && families.any? { |family| name.start_with?("#{family}-") }
             @entries[name] || (name if model_ids.include?(name) || extends)

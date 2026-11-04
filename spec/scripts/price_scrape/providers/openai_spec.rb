@@ -587,11 +587,17 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
         .to raise_error(described_class::Error, /no OpenAI model found eligible/)
     end
 
-    it "raises on a new row that the model catalogue does not list" do
+    it "names a new row the model catalogue does not list by its changelog model tag, and raises without one" do
       without_sol = catalogue.sub(/^- \[GPT-6\.1 Sol\].*\n/, "")
+      untagged = changelog.gsub("Model: gpt-6.1-sol · ", "")
+      catalogue_url = described_class::MODEL_CATALOGUE_URL
+      changelog_url = described_class::DataResidencyPrices::CHANGELOG_URL
 
+      models = described_class.new.call(html: html_pages(catalogue_url => without_sol),
+                                        scraped_at: "2026-10-05T00:00:00Z").models
+      expect(models.fetch("gpt-6.1-sol")).to include("input", "output")
       expect do
-        described_class.new.call(html: html_pages(described_class::MODEL_CATALOGUE_URL => without_sol))
+        described_class.new.call(html: html_pages(catalogue_url => without_sol, changelog_url => untagged))
       end.to raise_error(described_class::Error, /no model ID for OpenAI price row "gpt-6.1-sol"/)
     end
 

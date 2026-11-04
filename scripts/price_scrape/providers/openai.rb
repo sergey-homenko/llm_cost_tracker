@@ -87,7 +87,7 @@ module LlmCostTracker
         end
 
         def priced_models(page, pages)
-          @catalogue = Catalogue.new(pages[MODEL_CATALOGUE_URL])
+          @catalogue = Catalogue.new(pages[MODEL_CATALOGUE_URL], pages[DataResidencyPrices::CHANGELOG_URL])
           @price_rows = PriceRows.new(@catalogue)
           models = TIER_FIELDS.keys.reduce({}) do |collected, tier|
             merge_model_fields(collected, tier_models(page, pages, tier))
