@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- openai gem 0.115+ `connection.response.create` on a Responses WebSocket keeps its tags and `:block_requests` budget check.
+
 ## [0.15.2] - 2026-10-29
 
 ### Changed

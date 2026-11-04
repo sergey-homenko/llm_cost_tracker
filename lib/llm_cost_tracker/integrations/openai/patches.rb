@@ -71,6 +71,12 @@ module LlmCostTracker
         end
       end
 
+      module ResponsesConnectionCreatePatch
+        def send_response_create(event)
+          llm_cost_tracker_capture.sending(event) { super }
+        end
+      end
+
       module ChatCompletionsPatch
         include PatchBuilder.build(record_method: :record_response, methods: %i[create])
         include PatchBuilder.build_stream(methods: %i[stream stream_raw])
