@@ -13,17 +13,6 @@
       "gemini/gemini-3.1-flash-lite-preview": "2026-10-05",
       "gemini/gemini-3.7-flash": "2026-10-11",
       "gemini/gemini-omni-flash-preview": "2026-10-23",
-      "mistral/mistral-large-3": "2026-11-04",
-      "mistral/mistral-medium": "2026-11-04",
-      "mistral/mistral-medium-3.5": "2026-11-04",
-      "mistral/mistral-vibe-cli-latest": "2026-11-04",
-      "mistral/mistral-vibe-cli-with-tools": "2026-11-04",
-      "mistral/voxtral-mini-2602": "2026-11-04",
-      "mistral/voxtral-mini-latest": "2026-11-04",
-      "mistral/voxtral-mini-realtime-2602": "2026-11-04",
-      "mistral/voxtral-mini-realtime-latest": "2026-11-04",
-      "mistral/voxtral-mini-transcribe-realtime-2602": "2026-11-04",
-      "mistral/voxtral-mini-tts-2603": "2026-11-04",
       "openrouter/ai21/jamba-large-1.7": "2026-10-05",
       "openrouter/aion-labs/aion-1.0": "2026-10-05",
       "openrouter/aion-labs/aion-1.0-mini": "2026-10-05",
@@ -4963,9 +4952,9 @@
       "output": 0.12
     },
     "openrouter/google/gemma-4-26b-a4b-it": {
-      "cache_read_input": 0.043,
-      "input": 0.086,
-      "output": 0.259
+      "cache_read_input": 0.05,
+      "input": 0.1,
+      "output": 0.3
     },
     "openrouter/google/gemma-4-31b-it": {
       "input": 0.2,
