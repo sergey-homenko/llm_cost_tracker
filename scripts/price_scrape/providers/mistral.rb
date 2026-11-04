@@ -5,6 +5,7 @@ require "nokogiri"
 require "time"
 
 require_relative "litellm"
+require_relative "mistral/deprecated_cards"
 
 module LlmCostTracker
   module Pricing::Scrape
@@ -38,10 +39,8 @@ module LlmCostTracker
           "/1000 Pages" => %w[input ocr_page], "/Min" => %w[input transcription_minute],
           "/M Chars" => %w[input text_to_speech_character]
         }.freeze
-        RETIRED_TABLE = "//h3[normalize-space()='Deprecated & retired models']/following::"
         CARD_NAMES = /\\"names\\":\[([^\]]*)\]/
         CARD_MINUTE_PRICE = %r{\\"price\\":(\d+(?:\.\d+)?),\\"denominator\\":\\"/Min\\"}
-        DATE = %r{\d{1,2}/\d{1,2}/\d{4}}
         UNCONFIRMED_NOTE = "- `mistral`: models.dev was unreachable or invalid, so no LiteLLM-only row was written"
 
         def self.followup_urls(pages)
@@ -51,11 +50,19 @@ module LlmCostTracker
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
           read_cards(html)
-          retired, ambiguous = retirement(html.fetch(MODELS_SOURCE_URL), Date.parse(scraped_at))
+          retiring, retired_cards = DeprecatedCards.call(html.fetch(MODELS_SOURCE_URL), Date.parse(scraped_at))
+          retired, ambiguous = retirement(retired_cards)
           rows, models = priced_models(html, scraped_at, retired + ambiguous)
           validate!(models.except(*retired))
-          notes = row_notes(rows, ambiguous)
-          Result.new(source_url:, scraped_at:, models:, deprecated_models: retired, service_charges: {}, notes:)
+          Result.new(
+            source_url:,
+            scraped_at:,
+            models:,
+            deprecated_models: retired,
+            service_charges: {},
+            notes: row_notes(rows, ambiguous),
+            retiring_models: retiring_ids(html, retiring, models)
+          )
         end
 
         private
@@ -120,34 +127,19 @@ module LlmCostTracker
           end
         end
 
-        def retirement(page, today)
-          retired = retired_cards(page, today)
+        def retirement(retired)
           ids = retired.flat_map { |card, api| [api, *@api_names.fetch(card)] }.reject(&:empty?).uniq
           live = @api_names.except(*retired.map(&:first)).values.flatten
           [ids - live, ids & live]
         end
 
-        def retired_cards(page, today)
-          rows, api, dates = retired_table(Nokogiri::HTML(page))
-          rows.filter_map { |row| retired_card(row.css("td"), api, dates, today) }
-        end
-
-        def retired_card(cells, api, dates, today)
-          card = cells.first&.at_css("a[href^='/models/']") or raise Error, "Mistral retired row without a model card"
-          retires = cells[dates]&.text.to_s.scan(DATE)[1]
-          return unless retires && Date.strptime(retires, "%m/%d/%Y") < today
-
-          [card["href"].split("/").last, cells[api].text.strip]
-        end
-
-        def retired_table(doc)
-          headers = doc.xpath("#{RETIRED_TABLE}thead[1]/tr/th").map { |header| header.text.strip }
-          api = headers.index("API")
-          dates = headers.index("DeprecationRetirement")
-          rows = doc.xpath("#{RETIRED_TABLE}tbody[1]/tr")
-          return [rows, api, dates] if headers.first == "Model" && api && dates && rows.any?
-
-          raise Error, "Mistral retired models table not found or changed"
+        def retiring_ids(html, retiring, models)
+          cards = retiring.map(&:first)
+          sourced = self.class.parse_json(html.fetch(SOURCE_URL)).filter_map do |key, entry|
+            key.delete_prefix("mistral/") if key.start_with?("mistral/") && cards.include?(source_card(entry))
+          end
+          named = retiring.flat_map { |card, api| [api, *@api_names.fetch(card)] }
+          (named + sourced).reject(&:empty?).uniq - models.keys
         end
 
         def api_names(page, url)
@@ -169,11 +161,13 @@ module LlmCostTracker
 
         def listed_fields(id, entry)
           stem = id[/\A(.+)-(?:latest|\d{4})\z/, 1]
-          card = @cards_by_name[id] || MODEL_CARD.match(entry["source"].to_s)&.[](:card) || @cards_by_stem[stem]
+          card = @cards_by_name[id] || source_card(entry) || @cards_by_stem[stem]
           card ||= @cards_by_stem[stem.delete_prefix("mistral-")] if id.end_with?("-latest")
           fields = @listed.fetch(card, {})
           entry["mode"] == "ocr" && fields.key?("input") ? { "ocr_page" => fields["input"] } : fields
         end
+
+        def source_card(entry) = MODEL_CARD.match(entry["source"].to_s)&.[](:card)
 
         def cards_by_stem(cards)
           cards.group_by { |card| card.sub(/-\d{2}-\d{2}\z/, "").split("-").grep_v(/\A\d+\z/).join("-") }

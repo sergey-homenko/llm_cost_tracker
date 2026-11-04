@@ -7,8 +7,10 @@ module LlmCostTracker
   module Pricing::Scrape
     module Providers
       class Base
-        Result = Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges, :notes) do
-          def initialize(notes: [], **) = super
+        Result = Data.define(
+          :source_url, :scraped_at, :models, :deprecated_models, :service_charges, :notes, :retiring_models
+        ) do
+          def initialize(notes: [], retiring_models: [], **) = super
         end
         Error = LlmCostTracker::Error
         STANDARD_FIELD = /\A(?<context>above_context_)?(?<field>input|output|cache_read_input)\z/

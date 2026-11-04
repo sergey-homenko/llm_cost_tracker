@@ -80,7 +80,8 @@ module LlmCostTracker
         current = registry.fetch("models", {})
         plan = model_changes(provider, scraped, current, registry.fetch("service_charges", {}))
                .with(notes: held_notes(provider, held))
-        missing = current.keys.select { |key| key.start_with?("#{provider}/") } - listed_keys(plan, provider, held)
+        listed = listed_keys(plan, provider, held.keys + scraped.retiring_models)
+        missing = current.keys.select { |key| key.start_with?("#{provider}/") } - listed
         with_absences(plan, provider, missing, registry.dig("metadata", "absent_since") || {})
       end
 
@@ -135,9 +136,9 @@ module LlmCostTracker
         end
       end
 
-      def listed_keys(plan, provider, held)
-        held_keys = held.keys.map { |id| registry_key(provider, id) }
-        plan.added + plan.updated.keys + plan.unchanged + plan.removed + held_keys
+      def listed_keys(plan, provider, kept_ids)
+        kept_keys = kept_ids.map { |id| registry_key(provider, id) }
+        plan.added + plan.updated.keys + plan.unchanged + plan.removed + kept_keys
       end
 
       def with_absences(plan, provider, missing, absent_since)

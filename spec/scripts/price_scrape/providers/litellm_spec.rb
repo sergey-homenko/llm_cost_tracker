@@ -203,6 +203,19 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     expect(after_retirement.deprecated_models).to include("zai-glm-5-2")
   end
 
+  it "names a deprecated Mistral model its pricing page stops listing as retiring through its retirement date" do
+    pricing = fixture("mistral_pricing.html").sub(%r{<tr[^>]*>(?:(?!</tr>).)*?/models/zai-glm-5-2".*?</tr>}m, "")
+    pages = mistral_pages.merge(mistral_class::PRICING_SOURCE_URL => pricing)
+    on_retirement = mistral_class.new.call(html: pages, scraped_at: "2026-10-31T06:00:00Z")
+    after_retirement = mistral_class.new.call(html: pages, scraped_at: "2026-11-01T06:00:00Z")
+
+    expect(mistral_result.retiring_models).to be_empty
+    expect(on_retirement.models.keys).not_to include("zai-glm-5-2", "glm-5-2")
+    expect(on_retirement.retiring_models).to contain_exactly("zai-glm-5-2", "glm-5-2")
+    expect(after_retirement.retiring_models).to be_empty
+    expect(after_retirement.deprecated_models).to include("zai-glm-5-2")
+  end
+
   it "writes no LiteLLM row for an id both a retired and a current card name, and reports it" do
     card_names.merge!("mistral-nemo-12b-24-07" => %w[open-mistral-nemo mistral-embed],
                       "mathstral-7b-0-1" => %w[mistral-embed])

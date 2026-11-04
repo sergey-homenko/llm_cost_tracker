@@ -7,16 +7,17 @@ require "price_scrape/orchestrator"
 
 RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
   let(:provider_result_class) do
-    Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges)
+    Data.define(:source_url, :scraped_at, :models, :deprecated_models, :service_charges, :retiring_models)
   end
 
-  def build_result(models:, deprecated_models: [], service_charges: {})
+  def build_result(models:, deprecated_models: [], service_charges: {}, retiring_models: [])
     provider_result_class.new(
       source_url: "https://example.com/pricing",
       scraped_at: "2026-04-26T00:00:00Z",
       models: models,
       deprecated_models: deprecated_models,
-      service_charges: service_charges
+      service_charges: service_charges,
+      retiring_models: retiring_models
     )
   end
 
@@ -419,6 +420,22 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Orchestrator do
                                       registry_path: path)
 
         expect([held.absent, listed.absent]).to eq([{}, { "openai/tts-1-hd" => { "from" => nil, "to" => "2026-10-05" } }])
+      end
+    end
+
+    it "keeps a model its provider serves until a later retirement at its registry rates, and clears its date" do
+      registry = build_registry(
+        models: %w[claude-opus-4-7 claude-retiring claude-gone].to_h { |key| ["anthropic/#{key}", prices] },
+        metadata: { "absent_since" => { "anthropic/claude-retiring" => "2026-10-01" } }
+      )
+      result = build_result(models: { "claude-opus-4-7" => prices }, retiring_models: %w[claude-retiring])
+
+      with_registry(registry) do |path|
+        expect(scrape(path, result).absent).to eq(
+          "anthropic/claude-retiring" => { "from" => "2026-10-01", "to" => nil },
+          "anthropic/claude-gone" => { "from" => nil, "to" => "2026-10-05" }
+        )
+        expect(JSON.parse(File.read(path))["models"]).to include("anthropic/claude-retiring" => prices)
       end
     end
   end
