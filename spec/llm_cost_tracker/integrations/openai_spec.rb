@@ -199,6 +199,27 @@ RSpec.describe LlmCostTracker::Integrations::Openai do
       end
     end
 
+    it "records a response.create sent as a raw client event at the tags it was sent under" do
+      response = { id: "resp_raw", object: "response", created_at: 1, status: "in_progress", model: "gpt-4o",
+                   output: [], usage: nil, tools: [] }
+      usage = { input_tokens: 10, output_tokens: 5, total_tokens: 15 }
+      transport, = responses_websocket(
+        [{ type: "response.created", sequence_number: 0, response: response },
+         { type: "response.completed", sequence_number: 1, response: response.merge(status: "completed", usage: usage) }]
+      )
+
+      capture_sdk_events do |events|
+        client.responses.connect(transport: transport) do |connection|
+          LlmCostTracker.with_tags(tenant: "raw") do
+            connection.send_event(type: "response.create", model: "gpt-4o", input: "hi")
+          end
+          connection.each { nil }
+        end
+
+        expect(events.map { |event| [event[:provider_response_id], event[:tags][:tenant]] }).to eq([%w[resp_raw raw]])
+      end
+    end
+
     it "blocks a response.create over budget before it is sent and sends one within budget" do
       LlmCostTrackerReset.call
       LlmCostTracker.configure do |config|
