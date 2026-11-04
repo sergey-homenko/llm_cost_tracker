@@ -4,7 +4,7 @@ require "spec_helper"
 require "price_scrape/providers/gemini"
 
 RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
-  let(:fixture_path) { File.expand_path("../../../fixtures/scrape/gemini_pricing.html", __dir__) }
+  let(:fixture_path) { File.expand_path("../../../fixtures/scrape/gemini_pricing.md", __dir__) }
   let(:html) { File.read(fixture_path, encoding: "utf-8") }
   let(:vertex_html) { File.read(File.expand_path("../../../fixtures/scrape/vertex_pricing.html", __dir__), encoding: "utf-8") }
 
@@ -155,19 +155,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
         "input" => 2.0,
         "output" => 12.0,
         "image_input" => 2.0,
-        "image_output" => 120.0,
-        "batch_input" => 1.0,
-        "batch_output" => 6.0,
-        "batch_image_input" => 1.0,
-        "batch_image_output" => 60.0,
-        "flex_input" => 1.0,
-        "flex_output" => 6.0,
-        "flex_image_input" => 1.0,
-        "flex_image_output" => 60.0,
-        "priority_input" => 3.6,
-        "priority_output" => 21.6,
-        "priority_image_input" => 3.6,
-        "priority_image_output" => 216.0
+        "image_output" => 120.0
       )
       expect(models.fetch("gemini-2.5-flash-image")).to eq(
         "input" => 0.3,
@@ -190,92 +178,75 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     end
 
     it "raises when an image model's text is priced as a model the page does not price" do
-      broken_html = html.sub('priced the same as
-<a href="#gemini-2.5-flash">', 'priced the same as
-<a href="#gemini-2.4-flash">')
+      broken = html.sub("(/docs/pricing#gemini-2.5-flash)", "(/docs/pricing#gemini-2.4-flash)")
 
       expect do
-        scrape(broken_html)
+        scrape(broken)
       end.to raise_error(described_class::Error, /gemini-2.5-flash-image text is priced as "gemini-2.4-flash"/)
     end
 
     it "raises when a per-image output price has no per-token rate footnote" do
-      broken_html = html.sub("[*] Image output is priced at $30", "[*] Image output is priced at thirty dollars")
+      broken = html.gsub("Image output is priced at $30", "Image output is priced at thirty dollars")
       expect do
-        scrape(broken_html)
+        scrape(broken)
       end.to raise_error(described_class::Error, /image output rate not found/)
     end
 
-    it "raises when the pricing article body is missing" do
+    it "raises when the pricing page has no model sections" do
       expect do
         scrape("<html><body></body></html>")
-      end.to raise_error(described_class::Error, /article body not found/)
+      end.to raise_error(described_class::Error, /pricing sections not found/)
     end
 
     it "raises when standard pricing tables are missing" do
-      tableless_html = html.gsub(%r{<table\b.*?</table>}m, "")
+      tableless = html.gsub(%r{\{% table %\}.*?\{% /table %\}}m, "")
 
       expect do
-        scrape(tableless_html)
+        scrape(tableless)
       end.to raise_error(described_class::Error, /at least \d+ models/)
     end
 
     it "raises when the parsed model count is below the minimum" do
-      sparse_html = <<~HTML
-        <html><body>
-          <div class="devsite-article-body clearfix">
-            <div class="models-section">
-              <div class="heading-group">
-                <h2>Gemini 2.5 Pro</h2>
-                <em><code>gemini-2.5-pro</code></em>
-              </div>
-            </div>
-            <div class="ds-selector-tabs">
-              <section>
-                <h3>Standard</h3>
-                <table>
-                  <thead>
-                    <tr><th></th><th>Free Tier</th><th>Paid Tier, per 1M tokens in USD</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr><td>Input price</td><td>Free</td><td>$1.25, prompts &lt;= 200k tokens</td></tr>
-                    <tr><td>Output price</td><td>Free</td><td>$10.00, prompts &lt;= 200k tokens</td></tr>
-                  </tbody>
-                </table>
-              </section>
-              <section>
-                <h3>Batch</h3>
-                <table>
-                  <thead>
-                    <tr><th></th><th>Free Tier</th><th>Paid Tier, per 1M tokens in USD</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr><td>Input price</td><td>Not available</td><td>$0.625, prompts &lt;= 200k tokens</td></tr>
-                    <tr><td>Output price</td><td>Not available</td><td>$5.00, prompts &lt;= 200k tokens</td></tr>
-                  </tbody>
-                </table>
-              </section>
-            </div>
-          </div>
-        </body></html>
-      HTML
+      sparse_page = <<~MARKDOC
+        ## Gemini 2.5 Pro  {% id="gemini-2.5-pro" %}
+
+        *[`gemini-2.5-pro`](/docs/models/gemini-2.5-pro)*
+
+        {% table %}
+        * Feature
+        * Free Tier
+        * Paid Tier, per 1M tokens in USD
+
+        ---
+
+        * Input price
+        * Free of charge
+        * $1.25, prompts <= 200k tokens
+
+        ---
+
+        * Output price
+        * Free of charge
+        * $10.00, prompts <= 200k tokens
+        {% /table %}
+      MARKDOC
 
       expect do
-        scrape(sparse_html)
+        scrape(sparse_page)
       end.to raise_error(described_class::Error, /at least \d+ models/)
     end
 
     it "raises when a price cell does not match the expected format" do
-      broken_html = html.sub("<td>$0.10 (text / image / video)<br>$0.30 (audio)</td>", "<td>TBD</td>")
+      broken = html.sub("$0.10 (text / image / video)    \n  $0.30 (audio)", "TBD")
       expect do
-        scrape(broken_html)
+        scrape(broken)
       end.to raise_error(described_class::Error, /unable to parse price/)
     end
 
     it "raises when a batch price cell does not match the expected format" do
-      broken_html = html.sub("<td>$0.05 (text / image / video)<br>$0.15 (audio)</td>", "<td>TBD</td>")
+      broken = html.sub("$0.05 (text / image / video)    \n  $0.15 (audio)", "TBD")
       expect do
-        scrape(broken_html)
+        scrape(broken)
       end.to raise_error(described_class::Error, /unable to parse price/)
     end
   end
@@ -326,8 +297,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
   end
 
   it "raises when a prompt tier row names no size or another size than the model's other tiers" do
-    input_row = "$1.25, prompts <= 200k tokens<br>$2.50, prompts > 200k tokens"
-    cache_row = "$0.125, prompts <= 200k tokens<br>$0.25, prompts > 200k<br>"
+    input_row = "$2.50, prompts > 200k tokens"
+    cache_row = "$0.25, prompts > 200k "
 
     expect { scrape(html.sub(input_row, input_row.sub("> 200k", "> 200,000"))) }
       .to raise_error(described_class::Error, /prompt tier size not found/)
@@ -365,7 +336,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     models = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
 
     expect(models.fetch("gemini-embedding-001")).to eq("input" => 0.15, "batch_input" => 0.075)
-    unnamed = html.sub(%r{(>gemini-embedding-001</code>.*?)<td>Input price</td>}m, '\1<td>Input cost</td>')
+    unnamed = html.sub(/(`gemini-embedding-001`.*?)\* Input price/m, '\1* Input cost')
     expect { scrape(unnamed) }.to raise_error(described_class::Error, /Gemini text pricing rows not found/)
   end
 
@@ -383,6 +354,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     )
     expect(before_change.fetch("gemini-3.8-flash")).not_to include("grounding_request_from_2027-01-01")
     expect(before_change.fetch("gemini-3.8-flash-tts")).to include("audio_output_from_2027-01-01" => 18.0)
+    expect(before_change.fetch("gemini-robotics-er-2-preview")).to include(
+      "input" => 1.0, "input_from_2027-01-01" => 2.0, "cache_storage_token_hour_from_2027-01-01" => 1.0
+    )
     expect(after_change.fetch("gemini-3.8-flash")).to include("input" => 1.5, "output" => 7.5,
                                                               "cache_storage_token_hour" => 1.0)
     expect(after_change.fetch("gemini-3.8-flash").keys.grep(/_from_2027/)).to be_empty
@@ -405,15 +379,19 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     expect(models.fetch("gemini-3.1-flash-image")).to include("data_residency_image_output_from_2026-07-01" => 66.0)
     expect(models.select { |_id, fields| fields.keys.any? { |key| key.include?("data_residency") } }.keys)
       .to contain_exactly("gemini-3.1-flash-image", "gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.5-flash-lite",
-                          "gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.8-flash-cyber")
+                          "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.8-flash-cyber")
     expect(models.fetch("gemini-3.5-flash").keys.grep(/data_residency/).grep(/grounding|storage/)).to be_empty
   end
 
   it "prices a Gemini model only Vertex AI lists from its Global rows, and notes one whose rows it cannot read" do
     result = scrape(html)
     cyber = result.models.fetch("gemini-3.8-flash-cyber")
+    dated_rows_notes = ["* through December 31, 2026", "starting January 1, 2027"].map do |dates|
+      "- `gemini/gemini-3.7-flash`: Vertex AI prices Gemini 3.7 Flash #{dates} in rows the scraper cannot read, " \
+        "and the Gemini API page does not price it"
+    end
 
-    expect(result.notes).to be_empty
+    expect(result.notes).to eq(dated_rows_notes)
     expect(cyber.reject { |key, _| key.include?("data_residency") }).to eq(
       "input" => 1.5, "image_input" => 1.5, "audio_input" => 1.5, "cache_read_input" => 0.15, "output" => 7.5,
       "priority_input" => 2.7, "priority_image_input" => 2.7, "priority_audio_input" => 2.7,
@@ -429,9 +407,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     )
 
     unread = scrape(html, vertex: vertex_html.sub(/(Cyber<.*?)Input \(text, image, video, audio\)/m, '\1Input (text)'))
-    expect(unread.notes).to eq(["- `gemini/gemini-3.8-flash-cyber`: Vertex AI prices Gemini 3.8 Flash Cyber in rows " \
-                                "the scraper cannot read, " \
-                                "and the Gemini API page does not price it"])
+    expect(unread.notes - dated_rows_notes).to eq(["- `gemini/gemini-3.8-flash-cyber`: Vertex AI prices Gemini 3.8 " \
+                                                   "Flash Cyber in rows the scraper cannot read, " \
+                                                   "and the Gemini API page does not price it"])
     expect(unread.models).not_to have_key("gemini-3.8-flash-cyber")
   end
 

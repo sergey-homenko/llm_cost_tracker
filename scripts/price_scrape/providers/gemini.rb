@@ -7,12 +7,13 @@ require "time"
 require_relative "base"
 require_relative "gemini/non_global_prices"
 require_relative "gemini/price_table"
+require_relative "gemini/pricing_page"
 
 module LlmCostTracker
   module Pricing::Scrape
     module Providers
       class Gemini < Base
-        source_url "https://ai.google.dev/gemini-api/docs/pricing"
+        source_url "https://aistudio.google.com/docs/pricing.md"
         min_models 5
         max_price 1000.0
         anchors "gemini-2.5-pro", "gemini-2.5-flash"
@@ -21,14 +22,13 @@ module LlmCostTracker
         SCHEDULED_FROM = /starting (\w+ \d{1,2}, \d{4})/
         SCHEDULED_LINE = /#{SCHEDULED_FROM}\.?\z/
         CURRENT_LINE = /through \w+ \d{1,2}, \d{4}\.?\z/
-        TEXT_PRICED_AS = /Text input and output\s+is priced the same as/
         UNCAPTURED_MODEL = /(?<!transcribe)-live\b|-(?:streaming|native-audio)\b/
         VERTEX_URL = "https://cloud.google.com/model-garden/pricing"
         SOURCE_URLS = [source_url, VERTEX_URL].freeze
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
-          doc = Nokogiri::HTML(html.fetch(self.class.source_url))
-          models = extract_models(doc, Date.parse(scraped_at.to_s))
+          page = PricingPage.new(html.fetch(self.class.source_url))
+          models = extract_models(page, Date.parse(scraped_at.to_s))
           validate!(models)
           models, notes = NonGlobalPrices.new(Nokogiri::HTML(html.fetch(VERTEX_URL))).call(models)
           Result.new(source_url:, scraped_at:, models:, deprecated_models: [], service_charges: {}, notes:)
@@ -36,64 +36,35 @@ module LlmCostTracker
 
         private
 
-        def extract_models(doc, today)
-          article = doc.at_css("div.devsite-article-body")
-          raise Error, "Gemini pricing article body not found" unless article
-
+        def extract_models(page, today)
           text_priced_as = {}
-          models = priced_sections(article).each_with_object({}) do |(model_ids, tabs, same_as), collected|
-            prices = section_prices(model_ids, tabs, today)
+          models = priced_sections(page).each_with_object({}) do |(model_ids, section), collected|
+            prices = section_prices(model_ids, section, today)
             model_ids.each do |model_id|
               collected[model_id] = prices.dup
-              text_priced_as[model_id] = same_as if same_as && !prices.key?("output")
+              text_priced_as[model_id] = section.same_as if section.same_as && !prices.key?("output")
             end
           end
           add_text_output_prices(models, text_priced_as)
         end
 
-        def priced_sections(article)
-          sections(article).select { |model_ids, tabs, _| !model_ids.empty? && find_table(tabs, "Standard") }
-        end
-
-        def sections(article)
-          model_ids = []
-          same_as = nil
-          article.children.reject(&:text?).each_with_object([]) do |child, sections|
-            if models_section?(child)
-              model_ids = section_model_ids(child)
-            elsif pricing_tabs?(child)
-              sections << [model_ids, child, same_as]
-              model_ids = []
-              same_as = nil
-            elsif child.text.match?(TEXT_PRICED_AS)
-              same_as = child.at_css("a[href^='#']")&.[]("href").to_s.delete_prefix("#")
-            end
+        def priced_sections(page)
+          page.sections.filter_map do |section|
+            model_ids = section.model_ids.filter_map { |id| normalize_model_id(id) }
+            [model_ids, section] if model_ids.any? && section.tabs.key?("Standard")
           end
         end
 
-        def models_section?(node) = node["class"]&.include?("models-section")
-
-        def section_model_ids(section)
-          section.css("div.heading-group code").filter_map { |code| normalize_model_id(code.text.strip) }
-        end
-
-        def pricing_tabs?(node)
-          node.name == "table" ||
-            node["class"]&.include?("ds-selector-tabs") ||
-            node.at_css("devsite-selector[data-ds-scope='code-sample']") ||
-            (node["data-ds-scope"] == "code-sample")
-        end
-
-        def section_prices(model_ids, tabs, today)
-          if tabs.css("section").size > 1 && !find_table(tabs, "Batch")
+        def section_prices(model_ids, section, today)
+          if section.tabs.size > 1 && !section.tabs.key?("Batch")
             raise Error, "Gemini batch pricing table not found for #{model_ids.first}"
           end
 
-          dated_prices(tabs, footnotes(tabs), today)
+          dated_prices(section.tabs, section.notes, today)
         end
 
         def dated_prices(tabs, notes, today)
-          starting = tabs.text[SCHEDULED_FROM, 1]
+          starting = tabs.values.flat_map(&:values).join("\n")[SCHEDULED_FROM, 1]
           return tier_prices(tabs, notes) unless starting
 
           from = Date.parse(starting)
@@ -107,31 +78,16 @@ module LlmCostTracker
         end
 
         def without_lines(tabs, pattern)
-          tabs.dup.tap do |copy|
-            copy.css("td").each do |cell|
-              lines = cell.inner_html.split(%r{<br\s*/?>}i)
-              kept = lines.reject { |line| Nokogiri::HTML.fragment(line).text.strip.match?(pattern) }
-              cell.inner_html = kept.join("<br>")
-            end
+          tabs.transform_values do |rows|
+            rows.transform_values { |text| text.lines(chomp: true).grep_v(pattern).join("\n") }
           end
         end
 
         def tier_prices(tabs, notes)
           prices = TIER_PREFIXES.each_with_object({}) do |(heading, prefix), merged|
-            table = find_table(tabs, heading)
-            merged.merge!(PriceTable.new(table, notes).prices(prefix)) if table
+            merged.merge!(PriceTable.new(tabs[heading], notes).prices(prefix)) if tabs[heading]
           end
-          prices.merge(PriceTable.new(find_table(tabs, "Standard"), notes).service_prices)
-        end
-
-        def find_table(tabs, heading)
-          return (tabs if heading == "Standard") if tabs.name == "table"
-
-          tabs.css("section").find { |sec| sec.at_css("h3")&.text&.strip == heading }&.at_css("table")
-        end
-
-        def footnotes(tabs)
-          tabs.xpath("following-sibling::*").take_while { |node| !models_section?(node) }.map(&:text).join
+          prices.merge(PriceTable.new(tabs.fetch("Standard"), notes).service_prices)
         end
 
         def add_text_output_prices(models, text_priced_as)

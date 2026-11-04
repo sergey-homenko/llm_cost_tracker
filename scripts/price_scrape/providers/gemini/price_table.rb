@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "nokogiri"
-
 require_relative "../base"
 
 module LlmCostTracker
@@ -27,11 +25,8 @@ module LlmCostTracker
             "Audio input price" => "audio_input", "Video input price" => "video_input"
           }.freeze
 
-          def initialize(table, notes)
-            @rows = table.css("tbody tr").each_with_object({}) do |tr, rows|
-              cells = tr.css("td").map { |td| cell_text(td) }
-              rows[cells[0]] = cells[2] if cells.size >= 3
-            end
+          def initialize(rows, notes)
+            @rows = rows
             @notes = notes
           end
 
@@ -117,10 +112,6 @@ module LlmCostTracker
           end
 
           def row(label) = @rows.find { |row_label, _| row_label.start_with?(label) }&.last
-
-          def cell_text(cell)
-            Nokogiri::HTML.fragment(cell.inner_html.gsub(%r{<br\s*/?>}i, "\n")).text.strip
-          end
 
           def parse_price(text)
             match = text.to_s.match(PRICE)
