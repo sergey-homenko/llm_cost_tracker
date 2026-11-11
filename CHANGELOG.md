@@ -2,13 +2,17 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.15.3] - 2026-11-11
+
+### Changed
+
+- Bundled prices add Claude Fable 5.2 and Mythos 5.2, Gemini 4 Carbon, Gemini Omni 1.2 Flash, GPT-6-Cyber, GPT-6 Rosalind and GPT-Image-2.6, and follow Mistral's Large 4 price cut.
 
 ### Fixed
 
 - openai gem 0.115+ `connection.response.create` on a Responses WebSocket keeps its tags and `:block_requests` budget check.
 - RubyLLM 2.2: an attempt the provider answered with a 5xx before any output is recorded again, with unknown cost.
-- RubyLLM 2.2: transcription and speech without usage are priced by duration or characters again, not as free.
+- RubyLLM 2.2: transcription without usage is priced by its duration again, and speech without usage is no longer recorded as free.
 - RubyLLM 2.2: Claude on Bedrock, now called through InvokeModel, keeps its inference profile, data residency and service tier.
 
 ## [0.15.2] - 2026-10-29

@@ -1,5 +1,12 @@
 # Upgrading
 
+## v0.15.2 → v0.15.3
+
+There are no migrations.
+
+- **RubyLLM 2.2 calls recorded by 0.15.2** keep their stored values: `reprice` cannot restore a Bedrock inference profile, a transcription's duration or a skipped 5xx attempt.
+- **Responses WebSocket creates on openai gem 0.115+ recorded by 0.15.2** have no tags, and `:block_requests` did not check them.
+
 ## v0.15.1 → v0.15.2
 
 There are no migrations.
