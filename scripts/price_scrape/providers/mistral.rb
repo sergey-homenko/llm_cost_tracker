@@ -19,7 +19,7 @@ module LlmCostTracker
         PRICING_SOURCE_URL = "https://docs.mistral.ai/inference/pricing"
         MODELS_SOURCE_URL = "https://docs.mistral.ai/models"
         TIER_SOURCES = {
-          "batch" => ["https://docs.mistral.ai/studio/batch-processing.md", /at a (\d+)% discount/],
+          "batch" => ["https://docs.mistral.ai/inference/batch-processing.md", /at a (\d+)% discount/],
           "priority" => ["https://docs.mistral.ai/inference/priority-tier.md",
                          /multiplier is ([\d.]+)x standard list pricing/],
           "data_residency" => ["https://docs.mistral.ai/inference/regional-inference.md",

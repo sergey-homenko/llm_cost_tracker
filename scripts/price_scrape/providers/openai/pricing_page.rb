@@ -16,7 +16,8 @@ module LlmCostTracker
           SPECIALIZED_PRICING = "#content-switcher-specialized-pricing"
           TIER_PANE = "[data-content-switcher-pane]"
           TIER_ROWS = { "flex" => %w[batch alternateRows] }.freeze
-          PRICE_HEADINGS = ["Input", "Cached input", "Output"].freeze
+          PRICE_HEADINGS = ["Input", "Cached input", "30m write", "Output", "12h write"].freeze
+          REQUIRED_HEADINGS = ["Input", "Cached input", "Output"].freeze
 
           def initialize(doc)
             @doc = doc
@@ -52,10 +53,12 @@ module LlmCostTracker
             table = @doc.css("table").find { |candidate| candidate.text.include?("ToolDetailsPricing") }
             raise Error, "OpenAI tool pricing table not found" unless table
 
-            table.css("tbody tr").map { |tr| tr.css("td").map { |td| td.text.gsub(/\s+/, " ").strip } }
+            table.css("tbody tr").map { |tr| tr.css("td").map { |td| cell_text(td) } }
           end
 
           private
+
+          def cell_text(cell) = cell.xpath(".//text()").map(&:text).join(" ").gsub(/\s+/, " ").strip
 
           def pricing_islands(node)
             node.css("astro-island").select { |island| island["component-url"].to_s.include?(PRICING_COMPONENT) }
@@ -82,8 +85,18 @@ module LlmCostTracker
             return unless headings.is_a?(Array)
 
             labels = headings.drop(1).map { |heading| heading_label(heading).to_s }
-            prices = PRICE_HEADINGS.map { |name| labels.index { |label| label.start_with?(name) } }
-            ((0...labels.size).to_a - prices) + prices if prices.all?
+            prices = price_columns(labels)
+            ((0...labels.size).to_a - prices) + prices if prices
+          end
+
+          def price_columns(labels)
+            columns = PRICE_HEADINGS.to_h { |name| [name, labels.index { |label| label.start_with?(name) }] }
+            return unless columns.values_at(*REQUIRED_HEADINGS).all?
+            if columns["12h write"] && !columns["30m write"]
+              raise Error, "OpenAI 12h write column without a 30m write column"
+            end
+
+            columns.values.compact
           end
 
           def heading_label(heading)
@@ -96,7 +109,13 @@ module LlmCostTracker
             rows = unwrap(group["rows"]) if group.is_a?(Hash)
             return group unless rows.is_a?(Array)
 
-            group.merge("rows" => rows.map { |row| ordered_cells(unwrap(row), order) })
+            ordered = group.merge("rows" => rows.map { |row| ordered_cells(unwrap(row), order) })
+            long = unwrap(group["longContextPrices"])
+            return ordered unless long.is_a?(Hash)
+
+            ordered.merge("longContextPrices" => long.to_h do |name, cells|
+              [name, ordered_cells([name, *unwrap(cells)], order).drop(1)]
+            end)
           end
 
           def ordered_cells(cells, order)

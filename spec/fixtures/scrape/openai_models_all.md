@@ -46,6 +46,7 @@ Models for realtime, speech, and audio workflows.
 
 Advanced cyber models for defenders
 
+- [GPT-6-Cyber](/api/docs/models/gpt-6-cyber.md): Investigate a vulnerability, reproduce it in an authorized test environment, or verify a fix.
 - [GPT-5.6 Cyber](/api/docs/models/gpt-5.6-cyber.md): Our most advanced cybersecurity model for authorized vulnerability research and security testing.
 - [Daybreak Red](/api/docs/models/gpt-daybreak-red-latest.md): An alias for advanced cybersecurity models for authorized vulnerability research and security testing.
 - [Daybreak Blue](/api/docs/models/gpt-daybreak-blue-latest.md): An alias for flagship general-purpose models with safeguards for defensive cybersecurity work.

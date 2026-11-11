@@ -397,6 +397,28 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       )
     end
 
+    it "prices the specialized table's 30m and 12h writes and its long-context prices at the page's threshold" do
+      models = described_class.new.call(html: html_pages, scraped_at: "2026-10-21T00:00:00Z").models
+
+      expect(models.fetch("gpt-6-cyber")).to eq(
+        "input" => 20.0, "cache_read_input" => 2.0, "cache_write_input" => 25.0,
+        "cache_write_extended_input" => 50.0, "output" => 100.0, "_context_price_threshold_tokens" => 272_000,
+        "above_context_input" => 40.0, "above_context_cache_read_input" => 4.0, "above_context_output" => 150.0
+      )
+      expect(models.fetch("gpt-6-rosalind")).to include(
+        "cache_write_extended_input" => 37.5, "above_context_input" => 30.0, "above_context_output" => 112.5,
+        "above_context_cache_write_input" => 37.5, "above_context_cache_write_extended_input" => 75.0
+      )
+      expect(models.fetch("gpt-5.5-cyber-preview")).to eq("input" => 12.5, "cache_read_input" => 1.25, "output" => 75.0)
+    end
+
+    it "raises when a tool price row stops matching its label" do
+      renamed = html.gsub("(other models)", "(legacy models)")
+
+      expect { described_class.new.call(html: html_pages(described_class.source_url => renamed)) }
+        .to raise_error(described_class::Error, /tool price "Web search preview \(other models\)" not found/)
+    end
+
     it "prices embeddings at the Batch guide's discount and the legacy speech models per character" do
       models = described_class.new.call(html: html_pages, scraped_at: "2026-10-05T00:00:00Z").models
 

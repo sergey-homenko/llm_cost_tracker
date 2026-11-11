@@ -38,11 +38,10 @@ module LlmCostTracker
         BATCH_DISCOUNT = /(\d+)% cost discount compared to synchronous APIs/
         TOOL_PRICES = {
           "web_search_request" => "Web search",
-          "web_search_preview_request_reasoning" => "Web search preview (reasoning models, including gpt-5, o-series)",
-          "web_search_preview_request_non_reasoning" => "Web search preview (non-reasoning models)",
+          "web_search_preview_request_reasoning" => "Web search preview (reasoning models)",
+          "web_search_preview_request_non_reasoning" => "Web search preview (other models)",
           "file_search_call" => "Tool call"
         }.freeze
-        REQUIRED_TOOL_PRICES = %w[web_search_request file_search_call].freeze
 
         TOKEN_COLUMNS = %i[input cache_read_input cache_write_input cache_write_extended_input output].freeze
 
@@ -100,27 +99,31 @@ module LlmCostTracker
         def tier_models(page, pages, tier)
           fields = TIER_FIELDS.fetch(tier)
           rows = @price_rows.models(page.tier_rows(tier), fields)
-          models = merge_model_fields(rows, long_context_models(pages, tier, fields))
-          merge_model_fields(models, specialized_models(page, tier, fields))
+          long_context = long_context_prices(pages, tier, fields)
+          models = merge_model_fields(rows, long_context.models)
+          merge_model_fields(models, specialized_models(page, tier, fields, long_context))
         end
 
-        def long_context_models(pages, tier, fields)
+        def long_context_prices(pages, tier, fields)
           markdown = pages.fetch(RenderedLongContextPrices::SOURCE_URL)
-          RenderedLongContextPrices.new(markdown, tier:, fields:, model_ids: @catalogue.method(:model_id)).models
+          RenderedLongContextPrices.new(markdown, tier:, fields:, model_ids: @catalogue.method(:model_id))
         end
 
-        def specialized_models(page, tier, fields)
+        def specialized_models(page, tier, fields, long_context)
           groups = page.specialized_groups(tier)
-          tiered = groups ? pane_models(groups, fields) : {}
+          tiered = groups ? pane_models(groups, fields, long_context) : {}
           untiered = page.untiered_groups(tier).reduce({}) do |models, island_groups|
             merge_model_fields(models, @price_rows.grouped_models(island_groups, fields))
           end
           merge_model_fields(tiered, untiered)
         end
 
-        def pane_models(groups, fields)
+        def pane_models(groups, fields, long_context)
           rows = @price_rows.models(@price_rows.group_rows(groups), fields)
-          merge_model_fields(rows, @price_rows.grouped_models(groups, fields))
+          long = @price_rows.long_context_models(groups, fields).transform_values do |prices|
+            prices.merge(Pricing::Registry::CONTEXT_THRESHOLD_KEY => long_context.threshold)
+          end
+          merge_model_fields(merge_model_fields(rows, long), @price_rows.grouped_models(groups, fields))
         end
 
         def batch_embedding_prices(models, pages)
@@ -165,13 +168,11 @@ module LlmCostTracker
 
         def service_charges(page)
           rows = page.tool_rows
-          TOOL_PRICES.each_with_object({}) do |(charge, label), charges|
+          TOOL_PRICES.to_h do |charge, label|
             row = rows.find { |cells| cells.first == label }
-            if row
-              charges[charge] = parse_service_charge_price(row.last)
-            elsif REQUIRED_TOOL_PRICES.include?(charge)
-              raise Error, "OpenAI tool price #{label.inspect} not found"
-            end
+            raise Error, "OpenAI tool price #{label.inspect} not found" unless row
+
+            [charge, parse_service_charge_price(row.last)]
           end
         end
 

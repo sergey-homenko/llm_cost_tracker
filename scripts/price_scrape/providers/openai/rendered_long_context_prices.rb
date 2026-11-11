@@ -40,6 +40,13 @@ module LlmCostTracker
             end
           end
 
+          def threshold
+            sizes = @markdown.scan(THRESHOLD).flatten.compact.uniq
+            raise Error, "OpenAI long-context threshold is not one size on its pricing page: #{sizes}" unless sizes.one?
+
+            Integer(sizes.first) * 1_000
+          end
+
           private
 
           def row_prices(cells, columns, extended)
@@ -86,13 +93,6 @@ module LlmCostTracker
               prices["above_context_#{@fields.fetch(column)}"] = price if price
             end
             prices
-          end
-
-          def threshold
-            sizes = @markdown.scan(THRESHOLD).flatten.compact.uniq
-            raise Error, "OpenAI long-context threshold is not one size on its pricing page: #{sizes}" unless sizes.one?
-
-            Integer(sizes.first) * 1_000
           end
 
           def parse_optional_price(value)

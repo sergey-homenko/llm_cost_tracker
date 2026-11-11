@@ -60,6 +60,19 @@ module LlmCostTracker
             end
           end
 
+          def long_context_models(groups, fields)
+            groups.each_with_object({}) do |group, models|
+              group = unwrap(group)
+              prices = unwrap(group["longContextPrices"]) if group.is_a?(Hash)
+              next unless prices.is_a?(Hash)
+
+              prices.each do |name, cells|
+                long = price_fields([nil, *unwrap(cells)], fields)
+                models[@catalogue.model_id!(name)] = long.transform_keys { |field| "above_context_#{field}" }
+              end
+            end
+          end
+
           def group_rows(groups)
             groups.flat_map do |group|
               group = unwrap(group)
@@ -122,9 +135,10 @@ module LlmCostTracker
           end
 
           def price_fields(cells, fields)
-            input, cache_read, cache_write, output = price_cells(cells)
+            input, cache_read, cache_write, output, cache_write_extended = price_cells(cells)
             prices = fields == AUDIO_FIELDS && input == "-" ? {} : { fields.fetch(:input) => parse_price(input) }
-            { cache_read_input: cache_read, cache_write_input: cache_write, output: output }.each do |column, value|
+            { cache_read_input: cache_read, cache_write_input: cache_write, output: output,
+              cache_write_extended_input: cache_write_extended }.each do |column, value|
               price = parse_optional_price(value)
               prices[fields[column]] = price if price && fields[column]
             end
@@ -132,8 +146,8 @@ module LlmCostTracker
           end
 
           def price_cells(cells)
-            values = cells.drop(1).first(4).map { |cell| unwrap(cell) }
-            values.size == 4 ? values : values.insert(2, nil)
+            values = cells.drop(1).first(5).map { |cell| unwrap(cell) }
+            values.size == 3 ? values.insert(2, nil) : values
           end
 
           def parse_price(value)

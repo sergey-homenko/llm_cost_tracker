@@ -6,6 +6,22 @@
 
 Upcoming deprecations are listed on the [deprecations page](/api/docs/deprecations).
 
+## November, 2026
+
+### Nov 5
+
+Feature · Model: gpt-6-cyber
+
+Use [GPT-6-Cyber](https://developers.openai.com/api/docs/models/gpt-6-cyber) to investigate vulnerabilities, reproduce them in an authorized test environment, and verify fixes. See [Daybreak setup](https://developers.openai.com/api/docs/guides/daybreak#set-up-gpt-6-cyber) before sending your first request.
+
+## October, 2026
+
+### Oct 30
+
+Feature · Model: gpt-6-rosalind
+
+Released [GPT-6 Rosalind](https://developers.openai.com/api/docs/pricing#life-sciences-models), bringing specialized biological reasoning with scientific tool use to complex life sciences research. Access is available to organizations approved for Rosalind Research through the [trusted-access program](https://help.openai.com/en/articles/20001193-gpt-rosalind-for-life-sciences-research) for internal research by authorized users.
+
 ## September, 2026
 
 ### Sep 29
