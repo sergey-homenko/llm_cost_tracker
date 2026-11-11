@@ -36,6 +36,8 @@ module LlmCostTracker
           end
 
           def observe(seam, value, provider)
+            return @error_status = value.try(:status) if seam == :parse_error
+
             @provider = provider
             case seam
             when :parse_completion_body then @raw = value unless value.is_a?(Hash)
@@ -55,6 +57,8 @@ module LlmCostTracker
           end
 
           def add_attempt(usage)
+            usage = usage.merge(tokens: RubyLLM::Tokens.new) if maybe_billed?(usage)
+            @error_status = nil
             raw = @raw unless usage[:status] == :succeeded && usage[:tokens].to_h.empty?
             @reported << [usage, { latency_ms: @latency_ms, events: @window&.events, raw: raw }]
             @window = nil
@@ -67,6 +71,13 @@ module LlmCostTracker
             @reported.each_with_index.map do |(usage, reported), index|
               Attempt.new(usage, payload, final: index == final, response: @response, provider: @provider, **reported)
             end
+          end
+
+          private
+
+          def maybe_billed?(usage)
+            usage[:status] != :succeeded && (500..599).cover?(@error_status.to_i) &&
+              usage[:tokens].to_h == Attempt::TokenCounts::REFUSED
           end
         end
       end
