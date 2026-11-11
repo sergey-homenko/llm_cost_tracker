@@ -12,6 +12,7 @@ module AccountingCases
   PERPLEXITY_EMBED_ON_RUBY_LLM_1 = "RubyLLM 1.x has no Perplexity embeddings"
   CONVERSE_STREAM_ON_RUBY_LLM_1 = "RubyLLM 1.x Converse streams are frozen at their 0.14.2 accounting"
   CONVERSE_STREAM_URL = %r{\Ahttps://bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com/model/[^/]+/converse-stream\z}
+  INVOKE_STREAM_URL = %r{\Ahttps://bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com/model/[^/]+/invoke-with-response-stream\z}
   PNG_PART = { inlineData: { mimeType: "image/png", data: "iVBORw0KGgo=" } }.freeze
 
   def ruby_llm_chat(model, provider, context: RubyLLM)
@@ -81,21 +82,59 @@ module AccountingCases
     ruby_llm_chat(model, :vertexai, context: context).ask("hi")
   end
 
-  def converse_frame(type, data)
+  def event_stream_frame(type, data)
     headers = { ":message-type" => "event", ":event-type" => type, ":content-type" => "application/json" }
               .transform_values { |value| Aws::EventStream::HeaderValue.new(value: value, type: "string") }
     Aws::EventStream::Encoder.new.encode(Aws::EventStream::Message.new(headers: headers,
                                                                       payload: StringIO.new(JSON.generate(data))))
   end
 
-  def stub_converse_stream(usage)
-    body = [converse_frame("messageStart", { role: "assistant" }),
-            converse_frame("contentBlockDelta", { contentBlockIndex: 0, delta: { text: "hi" } }),
-            converse_frame("contentBlockStop", { contentBlockIndex: 0 }),
-            converse_frame("messageStop", { stopReason: "end_turn" }),
-            converse_frame("metadata", { usage: usage, metrics: { latencyMs: 640 } })].join
-    WebMock.stub_request(:post, CONVERSE_STREAM_URL)
-           .to_return(status: 200, body: body, headers: { "Content-Type" => "application/vnd.amazon.eventstream" })
+  def bedrock_invoke? = Gem::Version.new(RubyLLM::VERSION) >= Gem::Version.new("2.2.0")
+
+  def stub_bedrock_chat(region, usage, tier: nil)
+    model = "https://bedrock-runtime\\.#{region}\\.amazonaws\\.com/model/[^/]+"
+    unless bedrock_invoke?
+      return stub_json(:post, %r{\A#{model}/converse\z},
+                       { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
+                         usage: usage, metrics: { latencyMs: 640 }, serviceTier: ({ type: tier } if tier) }.compact)
+    end
+
+    WebMock.stub_request(:post, %r{\A#{model}/invoke\z}).to_return(
+      status: 200, headers: { "Content-Type" => "application/json", "X-Amzn-Bedrock-Service-Tier" => tier }.compact,
+      body: JSON.generate(type: "message", role: "assistant", model: "claude", content: [{ type: "text", text: "hi" }],
+                          stop_reason: "end_turn", usage: bedrock_message_usage(usage))
+    )
+  end
+
+  def stub_bedrock_stream(usage)
+    frames = if bedrock_invoke?
+               invoke_stream_events(usage).map { |event| event_stream_frame("chunk", { bytes: [event.to_json].pack("m0") }) }
+             else
+               [["messageStart", { role: "assistant" }], ["contentBlockDelta", { contentBlockIndex: 0, delta: { text: "hi" } }],
+                ["contentBlockStop", { contentBlockIndex: 0 }], ["messageStop", { stopReason: "end_turn" }],
+                ["metadata", { usage: usage, metrics: { latencyMs: 640 } }]].map { |type, data| event_stream_frame(type, data) }
+             end
+    WebMock.stub_request(:post, bedrock_invoke? ? INVOKE_STREAM_URL : CONVERSE_STREAM_URL)
+           .to_return(status: 200, body: frames.join, headers: { "Content-Type" => "application/vnd.amazon.eventstream" })
+  end
+
+  def invoke_stream_events(usage)
+    message = { type: "message", role: "assistant", model: "claude", content: [],
+                usage: bedrock_message_usage(usage).merge(output_tokens: 1) }
+    [{ type: "message_start", message: message },
+     { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+     { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "hi" } },
+     { type: "content_block_stop", index: 0 },
+     { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: usage[:outputTokens] } },
+     { type: "message_stop" }]
+  end
+
+  def bedrock_message_usage(usage)
+    writes = usage.fetch(:cacheDetails, []).to_h { |detail| [detail[:ttl], detail[:inputTokens]] }
+    { input_tokens: usage[:inputTokens], output_tokens: usage[:outputTokens],
+      cache_read_input_tokens: usage[:cacheReadInputTokens].to_i,
+      cache_creation_input_tokens: usage[:cacheWriteInputTokens].to_i,
+      cache_creation: { ephemeral_5m_input_tokens: writes.fetch("5m", 0), ephemeral_1h_input_tokens: writes.fetch("1h", 0) } }
   end
 
   def converse_usage(input, output, cache_read: 0, one_hour: 0, five_minute: 0)
@@ -1048,31 +1087,28 @@ module AccountingCases
 
   define_case "ruby_llm bedrock chat stream: 1h and 5m cache writes from cacheDetails on a us profile",
               instrument: :ruby_llm, skip_on_ruby_llm_1: CONVERSE_STREAM_ON_RUBY_LLM_1 do
-    stub_converse_stream(converse_usage(3000, 800, cache_read: 500, one_hour: 3000, five_minute: 1000))
+    stub_bedrock_stream(converse_usage(3000, 800, cache_read: 500, one_hour: 3000, five_minute: 1000))
     ruby_llm_chat("us.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock, context: bedrock_context("us-east-1"))
       .ask("hi") { nil }
   end
 
   define_case "ruby_llm bedrock chat stream: cacheDetails split over with_caching's 1h TTL on a global profile",
               instrument: :ruby_llm, skip_on_ruby_llm_1: CONVERSE_STREAM_ON_RUBY_LLM_1 do
-    stub_converse_stream(converse_usage(1200, 300, one_hour: 2000, five_minute: 1500))
+    stub_bedrock_stream(converse_usage(1200, 300, one_hour: 2000, five_minute: 1500))
     ruby_llm_chat("global.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock, context: bedrock_context("sa-east-1"))
       .with_caching(ttl: "1h").ask("hi") { nil }
   end
 
   define_case "ruby_llm bedrock chat stream: GovCloud profile stays unpriced",
               instrument: :ruby_llm, skip_on_ruby_llm_1: CONVERSE_STREAM_ON_RUBY_LLM_1 do
-    stub_converse_stream(converse_usage(3000, 800, cache_read: 500, one_hour: 3000, five_minute: 1000))
+    stub_bedrock_stream(converse_usage(3000, 800, cache_read: 500, one_hour: 3000, five_minute: 1000))
     ruby_llm_chat("us-gov.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock,
                   context: bedrock_context("us-gov-west-1")).ask("hi") { nil }
   end
 
   define_case "ruby_llm bedrock chat: 1h and 5m cache writes from cacheDetails on an eu profile",
               instrument: :ruby_llm do
-    stub_json(:post, %r{\Ahttps://bedrock-runtime\.eu-central-1\.amazonaws\.com/model/[^/]+/converse\z},
-              { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
-                usage: converse_usage(2000, 400, cache_read: 6000, one_hour: 4000, five_minute: 1000),
-                metrics: { latencyMs: 640 } })
+    stub_bedrock_chat("eu-central-1", converse_usage(2000, 400, cache_read: 6000, one_hour: 4000, five_minute: 1000))
     ruby_llm_chat("eu.anthropic.claude-haiku-4-5-20251001-v1:0", :bedrock, context: bedrock_context("eu-central-1"))
       .ask("hi")
   end
@@ -1108,9 +1144,7 @@ module AccountingCases
 
   %w[flex reserved default].each do |tier|
     define_case "ruby_llm bedrock chat: haiku-4-5 served on the #{tier} tier of an eu profile", instrument: :ruby_llm do
-      stub_json(:post, %r{\Ahttps://bedrock-runtime\.eu-central-1\.amazonaws\.com/model/[^/]+/converse\z},
-                { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
-                  usage: converse_usage(2000, 400), metrics: { latencyMs: 640 }, serviceTier: { type: tier } })
+      stub_bedrock_chat("eu-central-1", converse_usage(2000, 400), tier: tier)
       ruby_llm_chat("eu.anthropic.claude-haiku-4-5-20251001-v1:0", :bedrock, context: bedrock_context("eu-central-1"))
         .ask("hi")
     end
@@ -1119,9 +1153,7 @@ module AccountingCases
   %w[us.anthropic.claude-sonnet-4-20250514-v1:0 us.anthropic.claude-3-5-haiku-20241022-v1:0].each do |model|
     define_case "ruby_llm bedrock chat: #{model}, retired on Anthropic's API, at its last Anthropic price",
                 instrument: :ruby_llm do
-      stub_json(:post, %r{\Ahttps://bedrock-runtime\.us-east-1\.amazonaws\.com/model/[^/]+/converse\z},
-                { output: { message: { role: "assistant", content: [{ text: "hi" }] } }, stopReason: "end_turn",
-                  usage: converse_usage(10_000, 1_000, cache_read: 2_000), metrics: { latencyMs: 640 } })
+      stub_bedrock_chat("us-east-1", converse_usage(10_000, 1_000, cache_read: 2_000))
       ruby_llm_chat(model, :bedrock, context: bedrock_context("us-east-1")).ask("hi")
     end
   end

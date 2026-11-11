@@ -19,8 +19,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
     end
   end
 
-  def chat(model, provider, context: RubyLLM)
-    context.chat(model: model, provider: provider, assume_model_exists: true)
+  def chat(model, provider, context: RubyLLM, **options)
+    context.chat(model: model, provider: provider, assume_model_exists: true, **options)
   end
 
   def no_retry_delay = RubyLLM.context { |config| config.retry_interval = config.retry_interval_randomness = 0 }
@@ -564,6 +564,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       end
     end
 
+    def converse = Gem::Version.new(RubyLLM::VERSION) >= Gem::Version.new("2.2.0") ? { protocol: :converse } : {}
+
     def converse_stream(usage)
       frames = [["messageStart", { role: "assistant" }], ["contentBlockDelta", { contentBlockIndex: 0, delta: { text: "hi" } }],
                 ["messageStop", { stopReason: "end_turn" }], ["metadata", { usage: usage, metrics: { latencyMs: 120 } }]]
@@ -584,8 +586,9 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       govcloud = RubyLLM.context { |config| config.bedrock_region = "us-gov-west-1" }
 
       capture_sdk_events do |events|
-        chat("us.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock).ask("hi") { |_chunk| nil }
-        chat("us-gov.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock, context: govcloud).ask("hi") { |_chunk| nil }
+        chat("us.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock, **converse).ask("hi") { |_chunk| nil }
+        chat("us-gov.anthropic.claude-sonnet-4-5-20250929-v1:0", :bedrock, context: govcloud, **converse)
+          .ask("hi") { |_chunk| nil }
         expect(events.map { |event| event.values_at(:model, :pricing_mode, :stream) })
           .to eq([["us.anthropic.claude-sonnet-4-5-20250929-v1:0", "data_residency", true],
                   ["us-gov.anthropic.claude-sonnet-4-5-20250929-v1:0", nil, true]])
@@ -608,8 +611,8 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       model = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
       capture_sdk_events do |events|
-        chat(model, :bedrock).ask("hi")
-        chat(model, :bedrock).with_caching(ttl: "1h").ask("hi")
+        chat(model, :bedrock, **converse).ask("hi")
+        chat(model, :bedrock, **converse).with_caching(ttl: "1h").ask("hi")
         expect(events.map { |event| event.values_at(:input_tokens, :cache_write_input_tokens) })
           .to eq([[3000, 1000], [3000, 0]])
         expect(events.map { |event| event[:cache_write_extended_input_tokens] }).to eq([3000, 4000])
@@ -1439,6 +1442,15 @@ RSpec.describe LlmCostTracker::Integrations::RubyLlm::V2, unless: RubyLLM::VERSI
       expect(RubyLLM::Protocols::Deepgram.private_method_defined?(:build_chunk)).to be(false)
       expect(described_class.status).to have_attributes(
         status: :warn, message: /not read: RubyLLM::Protocols::Deepgram#build_chunk, RubyLLM::Protocols::Gone#build_chunk\z/
+      )
+    end
+
+    it "names RubyLLM's error parser in doctor when its error middleware is gone" do
+      hide_const("RubyLLM::Transport::ErrorMiddleware")
+
+      expect { described_class.install }.not_to raise_error
+      expect(described_class.status).to have_attributes(
+        status: :warn, message: /not read: RubyLLM::Transport::ErrorMiddleware\.parse_error\z/
       )
     end
 

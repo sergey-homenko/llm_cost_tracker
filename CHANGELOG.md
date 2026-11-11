@@ -7,6 +7,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Fixed
 
 - openai gem 0.115+ `connection.response.create` on a Responses WebSocket keeps its tags and `:block_requests` budget check.
+- RubyLLM 2.2: an attempt the provider answered with a 5xx before any output is recorded again, with unknown cost.
+- RubyLLM 2.2: transcription and speech without usage are priced by duration or characters again, not as free.
+- RubyLLM 2.2: Claude on Bedrock, now called through InvokeModel, keeps its inference profile, data residency and service tier.
 
 ## [0.15.2] - 2026-10-29
 

@@ -40,6 +40,12 @@ module LlmCostTracker
         BatchBridge = Module.new do
           %i[messages results].each { |name| define_method(name) { V2.collect(self) { super() } } }
         end
+        ErrorBridge = Module.new do
+          def parse_error(*, **options, &)
+            V2.observe(:parse_error, options[:response])
+            super
+          end
+        end
         BRIDGES = (SEAMS.keys - %i[stream_transcription transcribe messages results current_workflow]).to_h do |seam|
           bridge = Module.new do
             define_method(seam) do |value, *args, **options, &block|
@@ -63,15 +69,25 @@ module LlmCostTracker
                   owner.prepend(bridge) unless owner == bridge
                 end
               end
+              middleware = error_middleware
+              return unless middleware
+
+              middleware.singleton_class.prepend(ErrorBridge)
             end
 
             def missing
-              SEAMS.flat_map do |seam, targets|
+              seams = SEAMS.flat_map do |seam, targets|
                 targets.reject { |target| owner(target, seam) }.map { |target| "RubyLLM::#{target}##{seam}" }
               end
+              error_middleware ? seams : [*seams, "RubyLLM::Transport::ErrorMiddleware.parse_error"]
             end
 
             private
+
+            def error_middleware
+              middleware = "RubyLLM::Transport::ErrorMiddleware".safe_constantize
+              middleware if middleware.respond_to?(:parse_error)
+            end
 
             def owner(target, seam)
               "RubyLLM::#{target}".safe_constantize&.instance_method(seam)&.owner

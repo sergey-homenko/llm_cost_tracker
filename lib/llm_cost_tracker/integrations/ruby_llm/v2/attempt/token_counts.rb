@@ -7,6 +7,7 @@ module LlmCostTracker
         class Attempt
           class TokenCounts
             REFUSED = { input_tokens: 0, output_tokens: 0 }.freeze
+            NON_TOKEN_COUNTS = %i[characters audio_seconds search_units].freeze
 
             def initialize(usage, payload, raw:, request:)
               @usage = usage
@@ -62,7 +63,7 @@ module LlmCostTracker
 
             private
 
-            def known? = @tokens.to_h.any? || !@tokens.reported_cost.nil?
+            def known? = @tokens.to_h.except(*NON_TOKEN_COUNTS).any? || !@tokens.reported_cost.nil?
 
             def usage_source(known, result)
               return Usage::Source::SDK_RESPONSE if known

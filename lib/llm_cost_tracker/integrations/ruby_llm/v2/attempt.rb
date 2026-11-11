@@ -8,6 +8,8 @@ module LlmCostTracker
     module RubyLlm
       module V2
         class Attempt
+          BEDROCK_CLAUDE = /(?:\A|\.)anthropic\./
+
           attr_reader :usage, :latency_ms
 
           class << self
@@ -98,9 +100,9 @@ module LlmCostTracker
             return unless @events
 
             context = raw_context(raw, request).merge(response_status: 200, events: @events)
-            Attempt.stream_parsers.lazy.filter_map { |parser| parser.parse_stream(**context) }
-                   .find { |parsed| parsed.usage_source != Usage::Source::UNKNOWN }
-                   &.with(provider: usage[:provider], usage_source: Usage::Source::SDK_RESPONSE)
+            event = Attempt.stream_parsers.lazy.filter_map { |parser| parser.parse_stream(**context) }
+                           .find { |parsed| parsed.usage_source != Usage::Source::UNKNOWN }
+            sdk_event(event, usage, raw)
           end
 
           def parsed_event(usage, own, request)
@@ -108,8 +110,16 @@ module LlmCostTracker
             return unless body.is_a?(Hash)
 
             response = raw_context(own, request).merge(response_status: own.status, response_body: body)
-            event = body_event(usage, own, request, response)
-            event&.with(provider: usage[:provider], usage_source: Usage::Source::SDK_RESPONSE)
+            sdk_event(body_event(usage, own, request, response), usage, own)
+          end
+
+          def sdk_event(event, usage, raw)
+            event = event&.with(provider: usage[:provider], usage_source: Usage::Source::SDK_RESPONSE)
+            return event unless event && usage[:provider] == "bedrock" && usage[:model].to_s.match?(BEDROCK_CLAUDE)
+
+            request = { model: usage[:model], service_tier: raw.try(:headers).try(:[], "x-amzn-bedrock-service-tier") }
+            event.with(model: usage[:model],
+                       pricing_mode: Providers::Anthropic::UsageExtractor.pricing_mode(request: request, usage: nil))
           end
 
           def body_event(usage, own, request, response)
