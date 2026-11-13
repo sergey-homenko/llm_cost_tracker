@@ -77,6 +77,7 @@
       "openrouter/kwaipilot/kat-coder-pro-v2": "2026-10-05",
       "openrouter/kwaipilot/kat-coder-pro-v2.5": "2026-10-08",
       "openrouter/liquid/lfm-2-24b-a2b": "2026-10-05",
+      "openrouter/liquid/lfm-2.5-2.6b": "2026-11-13",
       "openrouter/meta-llama/llama-3-70b-instruct": "2026-10-05",
       "openrouter/meta-llama/llama-3-8b-instruct": "2026-10-05",
       "openrouter/meta-llama/llama-3.2-11b-vision-instruct": "2026-10-05",
@@ -227,7 +228,7 @@
       "https://docs.x.ai/developers/pricing.md"
     ],
     "unit": "1M tokens",
-    "updated_at": "2026-11-12"
+    "updated_at": "2026-11-13"
   },
   "models": {
     "anthropic/claude-3-5-haiku": {
@@ -2354,22 +2355,21 @@
       "priority_output": 3.675
     },
     "mistral/mistral-large-latest": {
-      "_source": "litellm",
-      "batch_cache_read_input": 0.025,
-      "batch_input": 0.25,
-      "batch_output": 0.75,
-      "cache_read_input": 0.05,
-      "data_residency_cache_read_input": 0.055,
-      "data_residency_input": 0.55,
-      "data_residency_output": 1.65,
-      "input": 0.5,
-      "output": 1.5,
-      "priority_cache_read_input": 0.0875,
-      "priority_data_residency_cache_read_input": 0.09625,
-      "priority_data_residency_input": 0.9625,
-      "priority_data_residency_output": 2.8875,
-      "priority_input": 0.875,
-      "priority_output": 2.625
+      "batch_cache_read_input": 0.035,
+      "batch_input": 0.35,
+      "batch_output": 1.05,
+      "cache_read_input": 0.07,
+      "data_residency_cache_read_input": 0.077,
+      "data_residency_input": 0.77,
+      "data_residency_output": 2.31,
+      "input": 0.7,
+      "output": 2.1,
+      "priority_cache_read_input": 0.1225,
+      "priority_data_residency_cache_read_input": 0.13475,
+      "priority_data_residency_input": 1.3475,
+      "priority_data_residency_output": 4.0425,
+      "priority_input": 1.225,
+      "priority_output": 3.675
     },
     "mistral/mistral-medium": {
       "batch_cache_read_input": 0.075,
@@ -4808,9 +4808,9 @@
       "output": 0.33
     },
     "openrouter/deepseek/deepseek-v4-pro": {
-      "cache_read_input": 0.074356,
-      "input": 0.892272,
-      "output": 1.784544
+      "cache_read_input": 0.25,
+      "input": 0.9,
+      "output": 1.5
     },
     "openrouter/deepseek/deepseek-v4-pro-0813": {
       "cache_read_input": 0.097,
@@ -4828,9 +4828,9 @@
       "output": 1.2
     },
     "openrouter/deepseek/deepseek-v4.1-flash-1017": {
-      "cache_read_input": 0.006,
-      "input": 0.3,
-      "output": 1.2
+      "cache_read_input": 0.01,
+      "input": 0.038,
+      "output": 0.5
     },
     "openrouter/deepseek/deepseek-v4.1-flash-1017:batch": {
       "cache_read_input": 0.004,
@@ -5144,6 +5144,22 @@
       "input": 1.0,
       "output": 5.0
     },
+    "openrouter/google/gemini-4-hydrogen": {
+      "audio_input": 1.5,
+      "cache_read_input": 0.075,
+      "cache_write_input": 0.083333,
+      "image_input": 1.5,
+      "input": 1.5,
+      "output": 7.5
+    },
+    "openrouter/google/gemini-4-hydrogen:batch": {
+      "audio_input": 0.75,
+      "cache_read_input": 0.0375,
+      "cache_write_input": 0.083333,
+      "image_input": 0.75,
+      "input": 0.75,
+      "output": 3.75
+    },
     "openrouter/google/gemini-nano-banana-2.1": {
       "input": 1.5,
       "output": 7.5
@@ -5178,9 +5194,9 @@
       "output": 0.12
     },
     "openrouter/google/gemma-4-26b-a4b-it": {
-      "cache_read_input": 0.046,
-      "input": 0.08,
-      "output": 0.1
+      "cache_read_input": 0.05,
+      "input": 0.09,
+      "output": 0.3
     },
     "openrouter/google/gemma-4-31b-it": {
       "input": 0.2,
@@ -5206,7 +5222,7 @@
     "openrouter/ibm-granite/granite-4.2-8b": {
       "cache_read_input": 0.015,
       "input": 0.06,
-      "output": 0.15
+      "output": 0.25
     },
     "openrouter/inception/mercury-2": {
       "cache_read_input": 0.025,
@@ -5477,9 +5493,9 @@
       "output": 1.2
     },
     "openrouter/minimax/minimax-m2.5": {
-      "cache_read_input": 0.027,
+      "cache_read_input": 0.03,
       "input": 0.27,
-      "output": 1.08
+      "output": 0.95
     },
     "openrouter/minimax/minimax-m2.7": {
       "cache_read_input": 0.042,
@@ -5677,9 +5693,9 @@
       "output": 2.5
     },
     "openrouter/moonshotai/kimi-k2.5": {
-      "cache_read_input": 0.209,
-      "input": 0.532,
-      "output": 3.325
+      "cache_read_input": 0.15,
+      "input": 0.5,
+      "output": 2.5
     },
     "openrouter/moonshotai/kimi-k2.6": {
       "cache_read_input": 0.15,
@@ -5702,9 +5718,9 @@
       "output": 16.0
     },
     "openrouter/moonshotai/kimi-k3.1-pro": {
-      "cache_read_input": 0.19,
-      "input": 0.2375,
-      "output": 8.7856
+      "cache_read_input": 0.2,
+      "input": 2.0,
+      "output": 10.0
     },
     "openrouter/moonshotai/kimi-k3.1-pro:batch": {
       "cache_read_input": 0.1,
@@ -6687,9 +6703,9 @@
       "output": 3.6
     },
     "openrouter/qwen/qwen3.5-9b": {
-      "cache_read_input": 0.153,
-      "input": 0.17,
-      "output": 0.25
+      "cache_read_input": 0.063,
+      "input": 0.07,
+      "output": 0.103
     },
     "openrouter/qwen/qwen3.5-9b:batch": {
       "input": 0.17,
@@ -6826,9 +6842,9 @@
       "output": 3.0
     },
     "openrouter/ricursiveai/ripple-65b-preview": {
-      "cache_read_input": 0.05,
-      "input": 0.2,
-      "output": 0.6
+      "cache_read_input": 0.025,
+      "input": 0.1,
+      "output": 0.3
     },
     "openrouter/sakana/fugu-max": {
       "cache_read_input": 0.25,
@@ -6952,6 +6968,11 @@
       "cache_read_input": 0.17,
       "input": 1.0,
       "output": 4.05
+    },
+    "openrouter/thinkingmachines/inkling-2-small": {
+      "cache_read_input": 0.03,
+      "input": 0.3,
+      "output": 1.0
     },
     "openrouter/thinkingmachines/inkling-small": {
       "cache_read_input": 0.1,
@@ -7083,9 +7104,9 @@
       "output": 2.0
     },
     "openrouter/xiaomi/mimo-v2.5-pro": {
-      "cache_read_input": 0.096,
-      "input": 0.48,
-      "output": 1.8
+      "cache_read_input": 0.0036,
+      "input": 0.435,
+      "output": 0.87
     },
     "openrouter/xiaomi/mimo-v2.6-flash": {
       "cache_read_input": 0.0028,
@@ -7166,9 +7187,9 @@
       "output": 0.989
     },
     "openrouter/z-ai/glm-5.3": {
-      "cache_read_input": 0.0689,
-      "input": 0.0699,
-      "output": 1.4
+      "cache_read_input": 0.079,
+      "input": 0.084,
+      "output": 3.6
     },
     "openrouter/z-ai/glm-5.3-flash": {
       "cache_read_input": 0.03,
