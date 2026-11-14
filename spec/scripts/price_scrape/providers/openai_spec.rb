@@ -638,6 +638,13 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       expect(models.keys.grep(/[A-Z (]/)).to be_empty
     end
 
+    it "names a row the pricing page marks deprecated by its label" do
+      expect(html).to include("[0,{&quot;label&quot;:[0,&quot;gpt-5.4-nano&quot;],&quot;deprecated&quot;:[0,true]}]")
+      models = described_class.new.call(html: html_pages, scraped_at: "2026-10-05T00:00:00Z").models
+
+      expect(models.fetch("gpt-5.4-nano")).to include("input" => 0.2, "cache_read_input" => 0.02, "output" => 1.25)
+    end
+
     it "reads a table grouped by model ID with unlabeled rows, naming variants of a catalogued display name" do
       result = described_class.new.call(html: html_pages, scraped_at: "2026-10-11T00:00:00Z")
 

@@ -11,6 +11,7 @@ module LlmCostTracker
           PRICE = /\$\s*(\d+(?:\.\d+)?)/
           PRICED = /\$\s*\d/
           PER_IMAGE_PRICE = /\$([\d.]+) per [^$\n]*image/
+          NOT_APPLICABLE = /Not applicable\b/
           IMAGE_OUTPUT_NOTE = /Image output is priced at \$([\d.]+) per 1,000,000 tokens.*?\$([\d.]+) per\s+image/m
           PROMPT_TIER = /prompts?\s*>/i
           PROMPT_TIER_SIZE = /prompts?\s*>\s*(\d+)k\b/i
@@ -66,7 +67,7 @@ module LlmCostTracker
           def modality_prices(input, output)
             base = parse_price(input)
             prices = { "input" => base }
-            prices["output"] = parse_price(output) unless output.start_with?(PER_IMAGE_PRICE)
+            prices["output"] = parse_price(output) unless output.start_with?(PER_IMAGE_PRICE, NOT_APPLICABLE)
             prices.merge(
               "image_input" => base,
               "audio_input" => input.include?("(") ? modality_price(input, "audio") : base,

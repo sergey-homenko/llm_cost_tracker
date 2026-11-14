@@ -4025,6 +4025,70 @@ Google's family of legacy music generation models.
   * [No](/docs/terms)
 {% /table %}
 
+## Gemini Decision 1  {% id="gemini-decision" %}
+
+{% two-column-layout %}
+  {% left-column class="center-vertically" %}
+  *[`gemini-decision-1`](/docs/models/gemini-decision-1)*
+
+  {% /left-column %}
+
+  {% right-column class="center-vertically right-align" %}
+  {% button href="/docs/decisions-api" variant="ais" %}
+  Try the API
+
+  {% /button %}
+
+  {% /right-column %}
+
+{% /two-column-layout %}
+
+{% hr /%}
+
+Our multimodal decision model for binary, categorical, and rubric evaluations
+across text, images, video, audio, and PDFs using the
+[Decisions API](/docs/decisions-api).
+
+Each request bills shared input tokens once, regardless of question count. Each
+question adds tokens for its own instructions, criteria, and formatting, and
+generates zero output tokens. [Batch API](/docs/batch-api) isn't supported.
+
+{% tabs %}
+  {% tab title="Standard" %}
+  {% table %}
+  * Feature
+  * Free Tier
+  * Paid Tier, per 1M tokens in USD
+
+  ---
+
+  * Input price (text, image, video, audio, PDF)
+  * Free of charge
+  * $0.10
+
+  ---
+
+  * Output price
+  * Not applicable (0 output tokens)
+  * Not applicable (0 output tokens)
+
+  ---
+
+  * Context caching price
+  * Not available
+  * Not available
+
+  ---
+
+  * Used to improve our products
+  * [Yes](/docs/terms)
+  * [No](/docs/terms)
+  {% /table %}
+
+  {% /tab %}
+
+{% /tabs %}
+
 ## Gemini Embedding 2  {% id="gemini-embedding-2" %}
 
 {% two-column-layout %}

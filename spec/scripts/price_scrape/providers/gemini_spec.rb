@@ -340,6 +340,12 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Gemini do
     expect { scrape(unnamed) }.to raise_error(described_class::Error, /Gemini text pricing rows not found/)
   end
 
+  it "prices a model that bills no output tokens from its input row" do
+    models = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
+
+    expect(models.fetch("gemini-decision-1")).to eq("input" => 0.1, "image_input" => 0.1, "audio_input" => 0.1)
+  end
+
   it "keeps an announced price change under a dated key until the date, then as the price itself" do
     before_change = scrape(html, scraped_at: "2026-09-26T00:00:00Z").models
     after_change = scrape(html, scraped_at: "2027-01-01T08:00:00Z").models

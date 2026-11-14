@@ -31,7 +31,7 @@ module LlmCostTracker
               cells = unwrap(row)
               next unless cells.is_a?(Array) && cells.size >= 4
 
-              model_id = @catalogue.model_id!(unwrap(cells[0]))
+              model_id = @catalogue.model_id!(row_label(cells[0]))
               prices = price_fields(cells, fields)
               existing = models[model_id]
               if existing && existing != prices
@@ -82,6 +82,11 @@ module LlmCostTracker
           end
 
           private
+
+          def row_label(cell)
+            label = unwrap(cell)
+            label.is_a?(Hash) ? unwrap(label["label"]) : label
+          end
 
           def group_prices(rows, fields, model_id)
             rows.each_with_object({}) do |row, prices|
