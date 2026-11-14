@@ -10,13 +10,13 @@ module LlmCostTracker
     module Providers
       class Openai < Base
         class DataResidencyPrices
-          ELIGIBILITY_URL = "https://developers.openai.com/api/docs/guides/your-data.md"
+          ELIGIBILITY_URL = "https://developers.openai.com/api/docs/guides/data-residency.md"
           CHANGELOG_URL = "https://developers.openai.com/api/docs/changelog.md"
           SOURCE_URLS = [ELIGIBILITY_URL, CHANGELOG_URL].freeze
           RELEASES_FILE = "scripts/price_scrape/providers/openai/data_residency_releases.yml"
           RELEASES = YAML.safe_load_file(File.expand_path("../../../../#{RELEASES_FILE}", __dir__)).freeze
           UPLIFT = /charged a (\d+)% uplift for models released on or after (\w+ \d{1,2}, \d{4})/
-          SUPPORT_TABLE = /^#### API Endpoint, tool and model support$(.*?)(?=^#|\z)/m
+          SUPPORT_TABLE = /^### API Endpoint, tool and model support$(.*?)(?=^#|\z)/m
           SUPPORT_COLUMNS = ["Processing regions", "Supported models"].freeze
           DAY_HEADING = /\A### ((?:#{Date::ABBR_MONTHNAMES.compact.join('|')})\w* \d{1,2})\s*\z/
           SNAPSHOT_DATE = /-(\d{4}-\d{2}-\d{2})\z/
@@ -51,7 +51,7 @@ module LlmCostTracker
           def uplift(page)
             text = page.gsub(/\[([^\]]*)\]\([^)]*\)/, '\1').gsub(/\s+/, " ")
             percent, date = text.match(UPLIFT)&.captures
-            raise Error, "OpenAI data residency uplift not found in its data controls guide" unless percent
+            raise Error, "OpenAI data residency uplift not found in its data residency guide" unless percent
 
             [1 + (Float(percent) / 100), Date.parse(date)]
           end

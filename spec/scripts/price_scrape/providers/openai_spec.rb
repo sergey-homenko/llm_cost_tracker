@@ -17,8 +17,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
   let(:catalogue) do
     File.read(File.expand_path("../../../fixtures/scrape/openai_models_all.md", __dir__), encoding: "utf-8")
   end
-  let(:data_controls) do
-    File.read(File.expand_path("../../../fixtures/scrape/openai_your_data.md", __dir__), encoding: "utf-8")
+  let(:residency_guide) do
+    File.read(File.expand_path("../../../fixtures/scrape/openai_data_residency.md", __dir__), encoding: "utf-8")
   end
   let(:changelog) do
     File.read(File.expand_path("../../../fixtures/scrape/openai_changelog.md", __dir__), encoding: "utf-8")
@@ -71,7 +71,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       described_class::DeprecatedModels::SOURCE_URL => deprecations_html,
       described_class::MODEL_CATALOGUE_URL => catalogue,
       described_class::BATCH_GUIDE_URL => batch_guide,
-      described_class::DataResidencyPrices::ELIGIBILITY_URL => data_controls,
+      described_class::DataResidencyPrices::ELIGIBILITY_URL => residency_guide,
       described_class::DataResidencyPrices::CHANGELOG_URL => changelog
     }.merge(overrides)
   end
@@ -555,7 +555,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       later = changelog.sub("## September, 2026", "#{entry}## September, 2026")
       result = described_class.new.call(html: html_pages(url => later), scraped_at: "2026-10-04T00:00:00Z")
 
-      expect(data_controls).to include("`gpt-realtime`")
+      expect(residency_guide).to include("`gpt-realtime`")
       expect(result.models.fetch("gpt-realtime").keys.grep(/data_residency/)).to be_empty
       expect(result.models.fetch("gpt-realtime-2.1")).to include("data_residency_input" => 4.4)
       expect(result.notes).to be_empty
@@ -563,7 +563,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
 
     context "with a model the frozen lists do not record" do
       let(:residency) { described_class::DataResidencyPrices }
-      let(:listed) { data_controls.sub("`gpt-6.1-sol`, ", "`gpt-6.1-sol`, `gpt-7`, ") }
+      let(:listed) { residency_guide.sub("`gpt-6.1-sol`, ", "`gpt-6.1-sol`, `gpt-7`, ") }
       let(:released) do
         changelog.sub("## September, 2026", "## October, 2026\n\n### Oct 3\n\nFeature · Model: gpt-7\n\n" \
                                             "Released GPT-7.\n\n## September, 2026")
@@ -596,16 +596,16 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       end
     end
 
-    it "raises when the data controls guide no longer gives the uplift terms or lists eligible models" do
+    it "raises when the data residency guide no longer gives the uplift terms or lists eligible models" do
       url = described_class::DataResidencyPrices::ELIGIBILITY_URL
-      without_terms = data_controls.gsub("10% uplift", "uplift")
-      without_table = data_controls.sub("#### API Endpoint, tool and model support", "#### Support")
+      without_terms = residency_guide.gsub("10% uplift", "uplift")
+      without_table = residency_guide.sub("### API Endpoint, tool and model support", "### Support")
 
       expect { described_class.new.call(html: html_pages(url => without_terms)) }
         .to raise_error(described_class::Error, /data residency uplift not found/)
       expect { described_class.new.call(html: html_pages(url => without_table)) }
         .to raise_error(described_class::Error, /data residency model table not found/)
-      expect { described_class.new.call(html: html_pages(url => data_controls.tr("`", "'"))) }
+      expect { described_class.new.call(html: html_pages(url => residency_guide.tr("`", "'"))) }
         .to raise_error(described_class::Error, /no OpenAI model found eligible/)
     end
 
