@@ -804,6 +804,11 @@
       "priority_output": 16.2,
       "priority_output_from_2027-01-01": 32.4
     },
+    "gemini/gemini-decision-1": {
+      "audio_input": 0.1,
+      "image_input": 0.1,
+      "input": 0.1
+    },
     "gemini/gemini-omni-1.1-flash": {
       "audio_input": 1.5,
       "image_input": 1.5,
