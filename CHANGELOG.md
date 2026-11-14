@@ -2,6 +2,12 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Gemini Decisions API calls through Faraday are recorded.
+
 ## [0.15.3] - 2026-11-11
 
 ### Changed

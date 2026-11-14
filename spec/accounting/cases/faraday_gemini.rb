@@ -251,4 +251,13 @@ module AccountingCases
       expect(LlmCostTracker::Call.count).to eq(1)
     end
   end
+
+  define_case "faraday gemini decisions: text and image input" do
+    questions = { refund: { type: "noul", instructions: "Is this a refund?" } }
+    usage = { total_input_tokens: 1000, total_output_tokens: 0, total_tokens: 1000,
+              input_tokens_by_modality: [{ modality: "text", tokens: 700 }, { modality: "image", tokens: 300 }] }
+    faraday_json("https://generativelanguage.googleapis.com/v1beta/decisions",
+                 { model: "gemini-decision-1", input: "x", questions: questions },
+                 { answers: { refund: { type: "noul", noul: 0.9, confidence: 0.9 } }, usage: usage })
+  end
 end

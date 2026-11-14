@@ -45,8 +45,8 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       expect(described_class.match?(models_index_url)).to be false
     end
 
-    it "matches the Interactions API and explicit cache creation, not reads or deletes of one cache" do
-      expected = { "/v1beta/interactions" => true, "/v1beta/cachedContents" => true,
+    it "matches the Interactions and Decisions APIs and explicit cache creation, not reads or deletes of one cache" do
+      expected = { "/v1beta/interactions" => true, "/v1beta/decisions" => true, "/v1beta/cachedContents" => true,
                    "/v1beta/cachedContents/abc" => false }
       expected.each do |path, matched|
         url = URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: path).to_s
@@ -364,6 +364,24 @@ RSpec.describe LlmCostTracker::Providers::Gemini::Parser do
       )
 
       expect(result).to be_nil
+    end
+  end
+
+  describe "#parse (Decisions API)" do
+    it "records a Decisions call from its input tokens by modality, with the model from the request body" do
+      url = URI::HTTPS.build(host: "generativelanguage.googleapis.com", path: "/v1beta/decisions").to_s
+      request = { model: "gemini-decision-1", input: "x", questions: { refund: { type: "noul", instructions: "Refund?" } } }
+      usage = { total_input_tokens: 1000, total_output_tokens: 0, total_tokens: 1000,
+                input_tokens_by_modality: [{ modality: "text", tokens: 700 }, { modality: "image", tokens: 300 }] }
+
+      result = parser.parse(request_url: url, request_body: request.to_json, response_status: 200,
+                            response_body: { answers: { refund: { type: "noul", noul: 0.9 } }, usage: usage }.to_json)
+
+      expect(result.model).to eq("gemini-decision-1")
+      expect(result.token_usage.input_tokens).to eq(700)
+      expect(result.token_usage.image_input_tokens).to eq(300)
+      expect(result.token_usage.output_tokens).to eq(0)
+      expect(parser.model_for(url, { "model" => "gemini-decision-1" })).to eq("gemini-decision-1")
     end
   end
 

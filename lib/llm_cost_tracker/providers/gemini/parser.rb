@@ -10,9 +10,12 @@ module LlmCostTracker
         HOSTS = %w[generativelanguage.googleapis.com].freeze
         INTERACTIONS_PATH_PATTERN = %r{/interactions(?:/[^/]+)?\z}
         INTERACTION_RETRIEVE_PATH_PATTERN = %r{/interactions/[^/]+\z}
+        INTERACTION_USAGE_PATH_PATTERN = Regexp.union(INTERACTIONS_PATH_PATTERN, %r{/decisions\z})
         CACHE_PATH_PATTERN = %r{/cachedContents\z}
         TRACKED_PATH_PATTERN = Regexp.union(
-          %r{/models/[^/:]+:(?:generateContent|streamGenerateContent)\z}, INTERACTIONS_PATH_PATTERN, CACHE_PATH_PATTERN
+          %r{/models/[^/:]+:(?:generateContent|streamGenerateContent)\z},
+          INTERACTION_USAGE_PATH_PATTERN,
+          CACHE_PATH_PATTERN
         )
         STREAM_PATH_PATTERN = /:streamGenerateContent\z/
         MODEL_PATH_PATTERN = %r{/models/([^/:]+)}
@@ -45,7 +48,7 @@ module LlmCostTracker
 
           response = safe_json_parse(response_body)
           request = safe_json_parse(request_body)
-          if path_matches?(request_url, INTERACTIONS_PATH_PATTERN)
+          if path_matches?(request_url, INTERACTION_USAGE_PATH_PATTERN)
             return interaction_response_event(response, request_url:, request:, response_headers:)
           end
           return cache_storage_event(response) if path_matches?(request_url, CACHE_PATH_PATTERN)
@@ -70,7 +73,7 @@ module LlmCostTracker
 
         def model_for(request_url, request_parsed)
           model_from_url(request_url) ||
-            (request_parsed["model"] if path_matches?(request_url, INTERACTIONS_PATH_PATTERN))
+            (request_parsed["model"] if path_matches?(request_url, INTERACTION_USAGE_PATH_PATTERN))
         end
 
         def retain_stream_event?(data)
