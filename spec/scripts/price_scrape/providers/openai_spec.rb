@@ -34,8 +34,11 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       },
       {
         "tier" => [0, "batch"],
-        "rows" => [1, [[1, [[0, "gpt-5"], [0, 0.625], [0, 0.0625], [0, 5]]]]],
-        "alternateRows" => [1, [[1, [[0, "gpt-5"], [0, 0.625], [0, 0.0625], [0, 5]]]]]
+        "rows" => [1, [[1, [[0, "gpt-5"], [0, 0.625], [0, 0.0625], [0, 5]]]]]
+      },
+      {
+        "tier" => [0, "flex"],
+        "rows" => [1, [[1, [[0, "gpt-5"], [0, 0.625], [0, 0.0625], [0, 5]]]]]
       },
       {
         "tier" => [0, "fast"],
@@ -56,12 +59,13 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
     pricing_html(props)
   end
 
-  def pricing_html(*props)
-    islands = props.map do |payload|
+  def pricing_html(*props) = "<html><body>#{pricing_islands(*props)}</body></html>"
+
+  def pricing_islands(*props)
+    props.map do |payload|
       escaped_props = CGI.escapeHTML(JSON.generate(payload))
       "<astro-island component-url=\"/_astro/pricing.test.js\" props=\"#{escaped_props}\"></astro-island>"
-    end
-    "<html><body>#{islands.join}</body></html>"
+    end.join
   end
 
   def html_pages(overrides = {})
@@ -530,6 +534,40 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Openai do
       )
       expect(fields.keys.grep(/ultrapriority|priority_.*ultrafast/)).to be_empty
       expect(result.models.except("gpt-6-astra", "gpt-6.1-sol").values.flat_map(&:keys).grep(/ultrafast/)).to be_empty
+    end
+
+    it "prices Ultrafast from the promotion table through its end date and from the list table after it" do
+      row = ->(input, cached, output) { [1, [[0, "gpt-5.5"], [0, input], [0, cached], [0, output]]] }
+      islands = pricing_islands({ "tier" => [0, "Ultrafast promotion"], "rows" => [1, [row.call(15, 1.5, 90)]] },
+                                { "tier" => [0, "Ultrafast list"], "rows" => [1, [row.call(30, 3, 180)]] })
+      promotion_markdown = [markdown, <<~MARKDOWN].join("\n")
+        For GPT-5.5, Ultrafast costs 3 times the Standard rate through February 28, 2027, and 6 times the Standard rate starting March 1, 2027 (Pacific time).
+
+        ### Ultrafast promotion pricing data
+
+        | Model | Long context input | Long context output |
+        | --- | --- | --- |
+        | gpt-5.5 | $30.00 | $135.00 |
+
+        ### Ultrafast list pricing data
+
+        | Model | Long context input | Long context output |
+        | --- | --- | --- |
+        | gpt-5.5 | $60.00 | $270.00 |
+      MARKDOWN
+      pages = html_pages(described_class.source_url => html.sub("</body>", "#{islands}</body>"),
+                         described_class::RenderedLongContextPrices::SOURCE_URL => promotion_markdown)
+
+      promotion, list = %w[2027-02-28 2027-03-01].map do |day|
+        described_class.new.call(html: pages, scraped_at: "#{day}T00:00:00Z").models.fetch("gpt-5.5")
+      end
+
+      expect(promotion).to include(
+        "ultrafast_input" => 15.0, "ultrafast_output" => 90.0, "above_context_ultrafast_input" => 30.0
+      )
+      expect(list).to include(
+        "ultrafast_input" => 30.0, "ultrafast_output" => 180.0, "above_context_ultrafast_input" => 60.0
+      )
     end
 
     it "uplifts the models OpenAI processes regionally that were released on or after the cutoff it states" do

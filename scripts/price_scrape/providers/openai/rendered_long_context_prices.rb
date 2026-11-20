@@ -19,9 +19,9 @@ module LlmCostTracker
           }.freeze
           EXTENDED_WRITE_COLUMN = "Short context 12h write"
 
-          def initialize(markdown, tier:, fields:, model_ids:)
+          def initialize(markdown, tiers:, fields:, model_ids:)
             @markdown = markdown
-            @tier = tier
+            @tiers = tiers
             @fields = fields
             @model_ids = model_ids
           end
@@ -68,9 +68,11 @@ module LlmCostTracker
                    .map { |lines| table_cells(lines) }
           end
 
-          def section
-            sections = @markdown.scan(/^#### #{@tier}$(.*?)(?=^#|\z)/im)
-            sections = @markdown.scan(/^### #{@tier} pricing data$(.*?)(?=^#|\z)/im) if sections.empty?
+          def section = @tiers.map { |tier| tier_section(tier) }.join
+
+          def tier_section(tier)
+            sections = @markdown.scan(/^#### #{tier}$(.*?)(?=^#|\z)/im)
+            sections = @markdown.scan(/^### #{tier} pricing data$(.*?)(?=^#|\z)/im) if sections.empty?
             sections.join
           end
 

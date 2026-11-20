@@ -19,11 +19,11 @@ module LlmCostTracker
         PRICING_SOURCE_URL = "https://docs.mistral.ai/inference/pricing"
         MODELS_SOURCE_URL = "https://docs.mistral.ai/models"
         TIER_SOURCES = {
-          "batch" => ["https://docs.mistral.ai/inference/batch-processing.md", /at a (\d+)% discount/],
-          "priority" => ["https://docs.mistral.ai/inference/priority-tier.md",
+          "batch" => ["https://docs.mistral.ai/inference/batch-processing", /at a (\d+)% discount/],
+          "priority" => ["https://docs.mistral.ai/inference/priority-tier",
                          /multiplier is ([\d.]+)x standard list pricing/],
-          "data_residency" => ["https://docs.mistral.ai/inference/regional-inference.md",
-                               /billed at \*\*([\d.]+)[x×] standard list pricing/]
+          "data_residency" => ["https://docs.mistral.ai/inference/regional-inference",
+                               /billed at <strong[^>]*>([\d.]+)[x×] standard list pricing/]
         }.freeze
         SOURCE_URLS = [source_url, MODELS_DEV_URL, PRICING_SOURCE_URL, MODELS_SOURCE_URL,
                        *TIER_SOURCES.values.map(&:first)].freeze

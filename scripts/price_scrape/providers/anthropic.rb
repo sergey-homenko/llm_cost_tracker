@@ -32,7 +32,7 @@ module LlmCostTracker
         SYNCHRONOUS_PRICE_FIELD = /\A(?:above_context_)?#{PRICE_DIMENSION}\z/
 
         SERVICE_CHARGE_PATTERNS = {
-          "web_search_request" => /Web search is available.*?\$\s*(\d+(?:\.\d+)?)(?:\s+USD)?\s+per 1,000 searches/i,
+          "web_search_request" => /web search costs \$\s*(\d+(?:\.\d+)?)(?:\s+USD)?\s+per 1,000 searches/i,
           "code_execution_hour" => /Additional usage beyond .*? billed at \$\s*(\d+(?:\.\d+)?)(?:\s+USD)?\s+per hour/i
         }.freeze
         FREE_SERVICE_CHARGE_PATTERNS = {

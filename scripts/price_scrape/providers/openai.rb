@@ -36,6 +36,7 @@ module LlmCostTracker
           "text-embedding-ada-002-v2" => "text-embedding-ada-002"
         }.freeze
         BATCH_DISCOUNT = /(\d+)% cost discount compared to synchronous APIs/
+        ULTRAFAST_PROMOTION = /Ultrafast costs \d+ times the Standard rate through ([A-Z][a-z]+ \d{1,2}, \d{4})/
         TOOL_PRICES = {
           "web_search_request" => "Web search",
           "web_search_preview_request_reasoning" => "Web search preview (reasoning models)",
@@ -63,6 +64,7 @@ module LlmCostTracker
         FAST_FIELD = /(?<![a-z])fast_/
 
         def call(html:, source_url: self.class.source_url, scraped_at: Time.now.utc.iso8601)
+          @scraped_on = Date.parse(scraped_at)
           pages = pages_from(html)
           page = PricingPage.new(Nokogiri::HTML(pages.fetch(self.class.source_url)))
           models, notes = priced_models(page, pages)
@@ -98,15 +100,23 @@ module LlmCostTracker
 
         def tier_models(page, pages, tier)
           fields = TIER_FIELDS.fetch(tier)
-          rows = @price_rows.models(page.tier_rows(tier), fields)
-          long_context = long_context_prices(pages, tier, fields)
+          tables = tier_tables(pages, tier)
+          rows = @price_rows.models(page.tier_rows(*tables), fields)
+          long_context = long_context_prices(pages, tables, fields)
           models = merge_model_fields(rows, long_context.models)
           merge_model_fields(models, specialized_models(page, tier, fields, long_context))
         end
 
-        def long_context_prices(pages, tier, fields)
+        def tier_tables(pages, tier)
+          ends_on = pages.fetch(RenderedLongContextPrices::SOURCE_URL)[ULTRAFAST_PROMOTION, 1] if tier == "ultrafast"
+          return [tier] unless ends_on
+
+          [tier, @scraped_on <= Date.parse(ends_on) ? "Ultrafast promotion" : "Ultrafast list"]
+        end
+
+        def long_context_prices(pages, tiers, fields)
           markdown = pages.fetch(RenderedLongContextPrices::SOURCE_URL)
-          RenderedLongContextPrices.new(markdown, tier:, fields:, model_ids: @catalogue.method(:model_id))
+          RenderedLongContextPrices.new(markdown, tiers:, fields:, model_ids: @catalogue.method(:model_id))
         end
 
         def specialized_models(page, tier, fields, long_context)

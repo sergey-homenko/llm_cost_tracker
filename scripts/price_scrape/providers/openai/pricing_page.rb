@@ -15,7 +15,6 @@ module LlmCostTracker
           PRICING_COMPONENT = "/pricing."
           SPECIALIZED_PRICING = "#content-switcher-specialized-pricing"
           TIER_PANE = "[data-content-switcher-pane]"
-          TIER_ROWS = { "flex" => %w[batch alternateRows] }.freeze
           PRICE_HEADINGS = ["Input", "Cached input", "30m write", "Output", "12h write"].freeze
           REQUIRED_HEADINGS = ["Input", "Cached input", "Output"].freeze
 
@@ -23,14 +22,13 @@ module LlmCostTracker
             @doc = doc
           end
 
-          def tier_rows(tier)
-            table_tier, rows_key = TIER_ROWS.fetch(tier, [tier, "rows"])
+          def tier_rows(*tiers)
             tables = pricing_props(@doc).select do |candidate|
-              unwrap(candidate["tier"]) == table_tier && candidate.key?(rows_key)
+              tiers.include?(unwrap(candidate["tier"])) && candidate.key?("rows")
             end
-            raise Error, "OpenAI #{tier} pricing table not found" if tables.empty?
+            raise Error, "OpenAI #{tiers.first} pricing table not found" if tables.empty?
 
-            rows = tables.map { |props| unwrap(props[rows_key]) }
+            rows = tables.map { |props| unwrap(props["rows"]) }
             raise Error, "OpenAI standard pricing rows not found" unless rows.all?(Array)
 
             rows.flatten(1)

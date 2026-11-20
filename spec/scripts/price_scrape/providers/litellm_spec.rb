@@ -23,7 +23,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     pages = { described_class::SOURCE_URL => body, described_class::MODELS_DEV_URL => fixture("models_dev.json"),
               mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html"),
               mistral_class::MODELS_SOURCE_URL => fixture("mistral_models.html") }
-            .merge(mistral_class::TIER_SOURCES.to_h { |tier, (url, _)| [url, fixture("mistral_#{tier}.md")] })
+            .merge(mistral_class::TIER_SOURCES.to_h { |tier, (url, _)| [url, fixture("mistral_#{tier}.html")] })
     pages.merge(mistral_class.followup_urls(pages).to_h { |url| [url, card(card_names.fetch(url.split("/").last))] })
   end
   let(:mistral_result) { mistral_class.new.call(html: mistral_pages, scraped_at: "2026-10-05T06:00:00Z") }
