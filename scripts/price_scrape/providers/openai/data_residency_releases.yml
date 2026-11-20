@@ -17,6 +17,7 @@ released_on_or_after_cutoff:
   - gpt-6-luna
   - gpt-6-sol
   - gpt-6.1-sol
+  - gpt-6.2-astra-law
   - gpt-daybreak-blue-latest
   - gpt-daybreak-red-latest
   - gpt-image-2
