@@ -5129,7 +5129,7 @@
     },
     "openrouter/deepseek/deepseek-v4-flash-0731": {
       "cache_read_input": 0.035,
-      "input": 0.047,
+      "input": 0.0443,
       "output": 0.3
     },
     "openrouter/deepseek/deepseek-v4-flash-0731:batch": {
@@ -5635,9 +5635,9 @@
       "output": 0.045
     },
     "openrouter/inclusionai/ling-3.1-flash": {
-      "cache_read_input": 0.009,
-      "input": 0.045,
-      "output": 0.135
+      "cache_read_input": 0.012,
+      "input": 0.06,
+      "output": 0.18
     },
     "openrouter/inclusionai/ring-2.6-1t": {
       "cache_read_input": 0.015,
@@ -7095,8 +7095,8 @@
       "output": 2.08
     },
     "openrouter/qwen/qwen3.5-27b": {
-      "input": 0.26,
-      "output": 2.6
+      "input": 0.195,
+      "output": 1.56
     },
     "openrouter/qwen/qwen3.5-35b-a3b": {
       "cache_read_input": 0.05,
@@ -7188,7 +7188,7 @@
     "openrouter/qwen/qwen3.8-27b": {
       "cache_read_input": 0.059,
       "input": 0.06,
-      "output": 2.2
+      "output": 1.96
     },
     "openrouter/qwen/qwen3.8-27b:batch": {
       "cache_read_input": 0.04,
