@@ -14,11 +14,6 @@
       "gemini/gemini-3.1-flash-lite-preview": "2026-10-05",
       "gemini/gemini-3.7-flash": "2026-10-11",
       "gemini/gemini-omni-flash-preview": "2026-10-23",
-      "mistral/mistral-large-3": "2026-11-25",
-      "mistral/voxtral-mini-tts-2603": "2026-11-25",
-      "mistral/voxtral-mini-tts-3": "2026-11-25",
-      "mistral/voxtral-mini-tts-3-0": "2026-11-25",
-      "mistral/voxtral-mini-tts-latest": "2026-11-25",
       "openai/gpt-5.5-cyber": "2026-11-11",
       "openrouter/ai21/jamba-large-1.7": "2026-10-05",
       "openrouter/aion-labs/aion-1.0": "2026-10-05",
@@ -5235,7 +5230,7 @@
     },
     "openrouter/deepseek/deepseek-v4-flash-0731": {
       "cache_read_input": 0.035,
-      "input": 0.047,
+      "input": 0.0456,
       "output": 0.3
     },
     "openrouter/deepseek/deepseek-v4-flash-0731:batch": {
@@ -5254,9 +5249,9 @@
       "output": 0.33
     },
     "openrouter/deepseek/deepseek-v4-pro": {
-      "cache_read_input": 0.108,
-      "input": 1.28,
-      "output": 2.56
+      "cache_read_input": 0.2,
+      "input": 0.777524,
+      "output": 1.5852
     },
     "openrouter/deepseek/deepseek-v4-pro-0813": {
       "cache_read_input": 0.097,
@@ -5269,9 +5264,9 @@
       "output": 1.98
     },
     "openrouter/deepseek/deepseek-v4.1-flash": {
-      "cache_read_input": 0.0042,
-      "input": 0.14,
-      "output": 0.42
+      "cache_read_input": 0.001014,
+      "input": 0.0507,
+      "output": 0.2028
     },
     "openrouter/deepseek/deepseek-v4.1-flash-1017": {
       "cache_read_input": 0.006,
@@ -6297,8 +6292,8 @@
       "output": 0.2
     },
     "openrouter/nvidia/nemotron-3.5-lightning": {
-      "cache_read_input": 0.01,
-      "input": 0.05,
+      "cache_read_input": 0.04,
+      "input": 0.07,
       "output": 0.2
     },
     "openrouter/nvidia/nemotron-3.5-super-vl": {
@@ -7659,9 +7654,9 @@
       "output": 0.28
     },
     "openrouter/xiaomi/mimo-v2.6-flash-mopd": {
-      "cache_read_input": 0.02,
-      "input": 0.15,
-      "output": 0.42
+      "cache_read_input": 0.05,
+      "input": 0.5,
+      "output": 1.0
     },
     "openrouter/xiaomi/mimo-v2.6-pro": {
       "cache_read_input": 0.0036,
@@ -7683,9 +7678,8 @@
       "output": 2.2
     },
     "openrouter/z-ai/glm-4.5-air": {
-      "cache_read_input": 0.025,
-      "input": 0.13,
-      "output": 0.85
+      "input": 0.14,
+      "output": 0.86
     },
     "openrouter/z-ai/glm-4.5v": {
       "cache_read_input": 0.11,
@@ -7698,7 +7692,7 @@
       "output": 2.0
     },
     "openrouter/z-ai/glm-4.6v": {
-      "cache_read_input": 0.055,
+      "cache_read_input": 0.05,
       "input": 0.3,
       "output": 0.9
     },
