@@ -110,7 +110,14 @@ module LlmCostTracker
       def fetch_provider_responses(name, provider_class)
         responses = source_urls(provider_class).to_h { |url| [url, fetch(name, url)] }.compact
         followups = provider_class.followup_urls(responses.transform_values(&:body))
-        responses.merge(followups.to_h { |url| [url, fetch(name, url)] })
+        responses.merge(followups.to_h { |url| [url, fetch_followup(name, url)] }.compact)
+      end
+
+      def fetch_followup(name, url)
+        fetch(name, url)
+      rescue Fetcher::NotFound => e
+        @io.puts "[#{name}] skipped #{url}: #{e.message}"
+        nil
       end
 
       def fetch(name, url)

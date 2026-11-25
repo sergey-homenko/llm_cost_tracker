@@ -6,6 +6,7 @@ require "time"
 
 require_relative "litellm"
 require_relative "mistral/deprecated_cards"
+require_relative "mistral/model_cards"
 
 module LlmCostTracker
   module Pricing::Scrape
@@ -25,7 +26,9 @@ module LlmCostTracker
           "data_residency" => ["https://docs.mistral.ai/inference/regional-inference",
                                /billed at <strong[^>]*>([\d.]+)[x×] standard list pricing/]
         }.freeze
-        SOURCE_URLS = [source_url, MODELS_DEV_URL, PRICING_SOURCE_URL, MODELS_SOURCE_URL,
+        CACHE_SOURCE = ["https://docs.mistral.ai/inference/conversations/advanced/prompt-caching",
+                        /billed at (\d+)% of the standard input token price/].freeze
+        SOURCE_URLS = [source_url, MODELS_DEV_URL, PRICING_SOURCE_URL, MODELS_SOURCE_URL, CACHE_SOURCE.first,
                        *TIER_SOURCES.values.map(&:first)].freeze
         PRICE_COLUMNS = { "Input" => "input", "Cached input" => "cache_read_input", "Output" => "output" }.freeze
         REQUIRED = {
@@ -39,8 +42,8 @@ module LlmCostTracker
           "/1000 Pages" => %w[input ocr_page], "/Min" => %w[input transcription_minute],
           "/M Chars" => %w[input text_to_speech_character]
         }.freeze
-        CARD_NAMES = /\\"names\\":\[([^\]]*)\]/
-        CARD_MINUTE_PRICE = %r{\\"price\\":(\d+(?:\.\d+)?),\\"denominator\\":\\"/Min\\"}
+        MODEL_LINK = %r{/models/([a-z0-9-]+)\z}
+        CARD_MINUTE_PRICE = %r{\\"priceUsd\\":(\d+(?:\.\d+)?),\\"priceEur\\":[\d.]+,\\"unit\\":\\"/Min\\"}
         UNCONFIRMED_NOTE = "- `mistral`: models.dev was unreachable or invalid, so no LiteLLM-only row was written"
 
         def self.followup_urls(pages)
@@ -70,17 +73,26 @@ module LlmCostTracker
         def read_cards(html)
           @listed = listed_prices(Nokogiri::HTML(html.fetch(PRICING_SOURCE_URL)))
           @cards_by_stem = cards_by_stem(@listed.keys)
-          @api_names = self.class.followup_urls(html).to_h do |url|
-            [url.split("/").last, api_names(html.fetch(url), url)]
-          end
+          cards = ModelCards.new(card_pages(html), @listed)
+          @api_names = cards.api_names
+          @renamed = cards.renamed
           @cards_by_name = @api_names.slice(*@listed.keys).flat_map { |card, ids| ids.product([card]) }.to_h
         end
+
+        def card_pages(html) = self.class.followup_urls(html).to_h { |url| [url.split("/").last, html[url]] }
 
         def priced_models(html, scraped_at, unwritten)
           official = official_models(self.class.parse_json(html.fetch(SOURCE_URL)))
           rows = self.class.confirmed_rows("mistral", html, official, scraped_at)
           rows &&= with_card_minutes(with_card_names(rows, official, html), html)
-          [rows, with_tiers(official.merge(rows.to_h.except(*unwritten)), html)]
+          [rows, with_tiers(with_cached_input(official, html).merge(rows.to_h.except(*unwritten)), html)]
+        end
+
+        def with_cached_input(models, html)
+          share = documented_factor(html.fetch(CACHE_SOURCE.first), CACHE_SOURCE.last, "cache") / 100
+          models.transform_values do |fields|
+            fields["input"] ? { "cache_read_input" => (fields["input"] * share).round(6) }.merge(fields) : fields
+          end
         end
 
         def row_notes(rows, ambiguous)
@@ -128,7 +140,7 @@ module LlmCostTracker
         end
 
         def retirement(retired)
-          ids = retired.flat_map { |card, api| [api, *@api_names.fetch(card)] }.reject(&:empty?).uniq
+          ids = retired.flat_map { |_card, names| names }.uniq
           live = @api_names.except(*retired.map(&:first)).values.flatten
           [ids - live, ids & live]
         end
@@ -138,13 +150,8 @@ module LlmCostTracker
           sourced = self.class.parse_json(html.fetch(SOURCE_URL)).filter_map do |key, entry|
             key.delete_prefix("mistral/") if key.start_with?("mistral/") && cards.include?(source_card(entry))
           end
-          named = retiring.flat_map { |card, api| [api, *@api_names.fetch(card)] }
+          named = retiring.flat_map { |_card, names| names }
           (named + sourced).reject(&:empty?).uniq - models.keys
-        end
-
-        def api_names(page, url)
-          list = page[CARD_NAMES, 1] or raise Error, "Mistral model card #{url} lists no API names"
-          list.scan(/\\"([^\\"]+)\\"/).flatten
         end
 
         def with_tiers(models, html)
@@ -167,7 +174,7 @@ module LlmCostTracker
           entry["mode"] == "ocr" && fields.key?("input") ? { "ocr_page" => fields["input"] } : fields
         end
 
-        def source_card(entry) = MODEL_CARD.match(entry["source"].to_s)&.[](:card)
+        def source_card(entry) = MODEL_CARD.match(entry["source"].to_s)&.[](:card).then { @renamed.fetch(_1, _1) }
 
         def cards_by_stem(cards)
           cards.group_by { |card| card.sub(/-\d{2}-\d{2}\z/, "").split("-").grep_v(/\A\d+\z/).join("-") }
@@ -179,8 +186,8 @@ module LlmCostTracker
           doc.css("table").each_with_object({}) do |table, listed|
             fields = table.css("th").map { |header| PRICE_COLUMNS[header.text.strip] }
             table.css("tr").each do |row|
-              link = row.at_css("a[href^='/models/']") or next
-              listed[link["href"].delete_prefix("/models/")] = row_prices(row, fields, link["href"])
+              link = row.at_css("a[href*='/models/']") or next
+              listed[link["href"][MODEL_LINK, 1]] = row_prices(row, fields, link["href"])
             end
           end
         end

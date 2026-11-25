@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "date"
-require "nokogiri"
+require "json"
 
 require_relative "../litellm"
 
@@ -10,37 +10,38 @@ module LlmCostTracker
     module Providers
       class Mistral < Litellm
         class DeprecatedCards
-          TABLE = "//h3[normalize-space()='Deprecated & retired models']/following::"
-          DATE = %r{\d{1,2}/\d{1,2}/\d{4}}
+          PUSH = %r{self\.__next_f\.push\((.*?)\)</script>}m
+          LIST = '{"models":[{'
 
-          def self.call(page, today) = new(Nokogiri::HTML(page)).call(today)
+          def self.call(page, today) = new(page).call(today)
 
-          def initialize(doc)
-            @doc = doc
+          def initialize(page)
+            @page = page
           end
 
           def call(today)
-            rows, api, dates = table
-            cards = rows.filter_map { |row| card(row.css("td"), api, dates) }
-            cards.partition { |_card, _api, retires| retires >= today }
+            cards = models.filter_map do |model|
+              retires = model["retiredAt"] or next
+              [model.fetch("href").delete_prefix("/models/"), model.fetch("modelIds"), Date.parse(retires)]
+            end
+            cards.partition { |_card, _ids, retires| retires >= today }
           end
 
           private
 
-          def table
-            headers = @doc.xpath("#{TABLE}thead[1]/tr/th").map { |header| header.text.strip }
-            api = headers.index("API")
-            dates = headers.index("DeprecationRetirement")
-            rows = @doc.xpath("#{TABLE}tbody[1]/tr")
-            return [rows, api, dates] if headers.first == "Model" && api && dates && rows.any?
+          def models
+            element = list
+            props = element[3] if element.is_a?(Array)
+            models = props["models"] if props.is_a?(Hash)
+            return models if models.is_a?(Array) && models.all? { |model| model.is_a?(Hash) && model.key?("modelIds") }
 
-            raise Error, "Mistral retired models table not found or changed"
+            raise Error, "Mistral retired models list not found or changed"
           end
 
-          def card(cells, api, dates)
-            link = cells.first&.at_css("a[href^='/models/']") or raise Error, "Mistral retired row without a model card"
-            retires = cells[dates]&.text.to_s.scan(DATE)[1]
-            [link["href"].split("/").last, cells[api].text.strip, Date.strptime(retires, "%m/%d/%Y")] if retires
+          def list
+            stream = @page.scan(PUSH).filter_map { |(chunk)| JSON.parse(chunk).then { |kind, text| text if kind == 1 } }
+            line = stream.join.each_line.find { |candidate| candidate.include?(LIST) } or return
+            JSON.parse(line.split(":", 2).last)
           end
         end
       end

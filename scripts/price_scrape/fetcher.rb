@@ -22,6 +22,7 @@ module LlmCostTracker
       class Error < StandardError; end
       class NetworkError < Error; end
       class ServerError < Error; end
+      class NotFound < Error; end
 
       def initialize(user_agent: DEFAULT_USER_AGENT, sleep: ->(seconds) { Kernel.sleep(seconds) })
         @user_agent = user_agent
@@ -84,7 +85,7 @@ module LlmCostTracker
         when Net::HTTPRedirection
           follow_redirect(response, url, redirects)
         when Net::HTTPClientError
-          raise Error, "client error #{response.code} fetching #{url}"
+          raise response.is_a?(Net::HTTPNotFound) ? NotFound : Error, "client error #{response.code} fetching #{url}"
         else
           raise ServerError, "server error #{response.code} fetching #{url}"
         end

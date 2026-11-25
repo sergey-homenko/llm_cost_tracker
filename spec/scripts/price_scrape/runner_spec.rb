@@ -141,6 +141,34 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Runner do
     end
   end
 
+  it "skips a follow-up page that is not found and hands the provider the rest" do
+    provider = Class.new(LlmCostTracker::Pricing::Scrape::Providers::Base) do
+      source_url "https://prices.example.test/"
+      define_singleton_method(:followup_urls) { |pages| pages.fetch(source_url).split }
+      define_method(:call) do |html:, source_url:, scraped_at:|
+        LlmCostTracker::Pricing::Scrape::Providers::Base::Result.new(
+          source_url:, scraped_at:, deprecated_models: [], service_charges: {},
+          models: { "model-a" => { "input" => Float(html.fetch("https://prices.example.test/b")) } }
+        )
+      end
+    end
+    stub_const("#{described_class}::PROVIDERS", "example" => provider)
+    stub_request(:get, "https://prices.example.test/")
+      .to_return(status: 200, body: "https://prices.example.test/a https://prices.example.test/b")
+    stub_request(:get, "https://prices.example.test/a").to_return(status: 404, body: "gone")
+    stub_request(:get, "https://prices.example.test/b").to_return(status: 200, body: "1.5")
+
+    Tempfile.create(["registry", ".json"]) do |file|
+      file.write(JSON.generate("metadata" => {}, "models" => {}))
+      file.close
+
+      runs = described_class.new(io: io).call(providers: %w[example], registry_path: file.path)
+
+      expect(runs.first.scraped.models).to eq("model-a" => { "input" => 1.5 })
+      expect(io.string).to include("[example] skipped https://prices.example.test/a: client error 404")
+    end
+  end
+
   def litellm_provider(url, *more)
     Class.new(LlmCostTracker::Pricing::Scrape::Providers::Base) do
       const_set(:SOURCE_URLS, [url, LlmCostTracker::Pricing::Scrape::Providers::Litellm::SOURCE_URL, *more])

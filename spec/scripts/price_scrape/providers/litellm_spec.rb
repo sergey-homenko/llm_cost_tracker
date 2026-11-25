@@ -19,10 +19,21 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       "mistral-nemo-12b-24-07" => %w[open-mistral-nemo open-mistral-nemo-2407], "mathstral-7b-0-1" => []
     }
   end
+  let(:retired_cards) do
+    {
+      "zai-glm-5-2" => [%w[zai-glm-5-2], "2026-10-31"],
+      "devstral-2-25-12" => [%w[devstral-2512 devstral-latest devstral-medium-latest], "2026-07-31"],
+      "magistral-medium-1-2-25-09" => [%w[magistral-medium-2509 magistral-medium-latest], "2026-07-31"],
+      "voxtral-mini-25-07" => [%w[voxtral-mini-2507 voxtral-mini-latest], "2026-05-31"],
+      "mistral-nemo-12b-24-07" => [%w[open-mistral-nemo open-mistral-nemo-2407], "2026-07-31"],
+      "mathstral-7b-0-1" => [[], nil]
+    }
+  end
   let(:mistral_pages) do
     pages = { described_class::SOURCE_URL => body, described_class::MODELS_DEV_URL => fixture("models_dev.json"),
               mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html"),
-              mistral_class::MODELS_SOURCE_URL => fixture("mistral_models.html") }
+              mistral_class::MODELS_SOURCE_URL => fixture("mistral_models.html") + retired_list(retired_cards),
+              mistral_class::CACHE_SOURCE.first => fixture("mistral_cache.html") }
             .merge(mistral_class::TIER_SOURCES.to_h { |tier, (url, _)| [url, fixture("mistral_#{tier}.html")] })
     pages.merge(mistral_class.followup_urls(pages).to_h { |url| [url, card(card_names.fetch(url.split("/").last))] })
   end
@@ -31,7 +42,14 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
 
   def fixture(name) = File.read("spec/fixtures/scrape/#{name}", encoding: "utf-8")
 
-  def card(names, **data) = %(<script>self.__next_f.push([1,#{{ "names" => names, **data }.to_json.to_json}])</script>)
+  def card(names, **data) = %(<script>self.__next_f.push([1,#{{ "modelIds" => names, **data }.to_json.to_json}])</script>)
+
+  def retired_list(cards)
+    models = cards.map do |card, (ids, retires)|
+      { "href" => "/models/#{card}", "modelIds" => ids, "retiredAt" => retires && "#{retires}T00:00:00.000Z" }.compact
+    end
+    %(<script>self.__next_f.push(#{[1, "34:#{['$', '$L36', nil, { 'models' => models }].to_json}\n"].to_json})</script>)
+  end
 
   it "prices only the Mistral models its pricing page lists, at the page's rates, under the names the API accepts" do
     catalogue = JSON.parse(body)
@@ -73,7 +91,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
 
   it "prices Mistral OCR per 1,000 pages from the Input column, under the card's API names and its -latest alias" do
     one_card = mistral_pages.merge(mistral_class::PRICING_SOURCE_URL => fixture("mistral_pricing.html")
-                                     .sub(%r{<tr><td><a href="/models/ocr-4-0">.*?</tr>}, ""))
+                                     .sub(%r{<tr><td><a href="//models/ocr-4-0">.*?</tr>}, ""))
     models = mistral_class.new.call(html: one_card, scraped_at: "2026-10-05T06:00:00Z").models
 
     expect(models.slice("mistral-ocr-4-1", "mistral-ocr-4", "mistral-ocr-latest").values)
@@ -84,7 +102,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   end
 
   it "prices Mistral OCR per 1,000 pages when the pricing page drops the unit from its cells" do
-    unitless = fixture("mistral_pricing.html").sub(%r{<tr><td><a href="/models/ocr-4-0">.*?</tr>}, "")
+    unitless = fixture("mistral_pricing.html").sub(%r{<tr><td><a href="//models/ocr-4-0">.*?</tr>}, "")
                                               .gsub(" /1000 Pages", "")
     models = mistral_class.new.call(html: mistral_pages.merge(mistral_class::PRICING_SOURCE_URL => unitless),
                                     scraped_at: "2026-10-05T06:00:00Z").models
@@ -120,8 +138,8 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   it "writes a row models.dev confirms under the other names only its model card gives, and no official one" do
     card_names["mistral-embed-23-12"] = %w[mistral-embed-2312 mistral-embed codestral-embed mistral-embed-latest]
     card_names["voxtral-mini-transcribe-26-02"] += %w[mistral-embed-latest]
-    models_page = fixture("mistral_models.html")
-                  .sub("</body>", %(<a href="/models/mistral-embed-23-12">Mistral Embed</a></body>))
+    models_page = mistral_pages.fetch(mistral_class::MODELS_SOURCE_URL)
+                               .sub("</body>", %(<a href="/models/mistral-embed-23-12">Mistral Embed</a></body>))
     pages = mistral_pages.merge(mistral_class::MODELS_SOURCE_URL => models_page,
                                 "#{mistral_class::MODELS_SOURCE_URL}/mistral-embed-23-12" =>
                                   card(card_names.fetch("mistral-embed-23-12")))
@@ -136,9 +154,9 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   it "prices a LiteLLM-only Voxtral row's audio per minute from its card, under no name models.dev prices otherwise" do
     models_dev = JSON.parse(fixture("models_dev.json"))
     models_dev["mistral"]["models"]["voxtral-small-2507"] = { "cost" => { "input" => 0.1, "output" => 0.4 } }
-    pricing = { "input" => [{ "type" => "range", "price" => 0.004, "denominator" => "/Min" }] }
-    models_page = fixture("mistral_models.html")
-                  .sub("</body>", %(<a href="/models/voxtral-small-25-07">Voxtral Small</a></body>))
+    pricing = [{ "direction" => "input", "priceUsd" => 0.004, "priceEur" => 0.0034, "unit" => "/Min" }]
+    models_page = mistral_pages.fetch(mistral_class::MODELS_SOURCE_URL)
+                               .sub("</body>", %(<a href="/models/voxtral-small-25-07">Voxtral Small</a></body>))
     pages = mistral_pages.merge(described_class::MODELS_DEV_URL => JSON.generate(models_dev),
                                 mistral_class::MODELS_SOURCE_URL => models_page,
                                 "#{mistral_class::MODELS_SOURCE_URL}/voxtral-small-25-07" =>
@@ -148,6 +166,18 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     expect(models.fetch("voxtral-small-2507"))
       .to include("_source" => "litellm", "input" => 0.1, "output" => 0.4, "transcription_minute" => 0.004)
     expect(models).not_to include("voxtral-small-latest")
+  end
+
+  it "prices cached input at the share of input the caching docs give when the pricing page leaves it out" do
+    page = fixture("mistral_pricing.html").sub("<td>$0.15</td><td>$0.015</td><td>$0.6</td>",
+                                               "<td>$0.15</td><td>-</td><td>$0.6</td>")
+    models = mistral_class.new.call(html: mistral_pages.merge(mistral_class::PRICING_SOURCE_URL => page),
+                                    scraped_at: "2026-10-05T06:00:00Z").models
+
+    expect(models.fetch("mistral-small-latest")).to include("cache_read_input" => 0.015)
+    expect(models.fetch("mistral-small-latest")).to eq(mistral.fetch("mistral-small-latest"))
+    expect { mistral_class.new.call(html: mistral_pages.merge(mistral_class::CACHE_SOURCE.first => "<p></p>")) }
+      .to raise_error(described_class::Error, /mistral cache rate not found/)
   end
 
   it "reads a Mistral sale price and raises on a pricing row it reads no price from" do
@@ -162,7 +192,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
     expect(scrape.call(sale).fetch("mistral-large-latest"))
       .to include("input" => 0.68, "cache_read_input" => 0.07, "output" => 2.09)
     expect { scrape.call("<td>$TBD</td>" * 3) }
-      .to raise_error(described_class::Error, %r{row for /models/mistral-large-3-25-12 has no price})
+      .to raise_error(described_class::Error, %r{row for //models/mistral-large-3-25-12 has no price})
     expect { scrape.call("<td>Contact sales</td>" * 3) }.not_to raise_error
   end
 
@@ -217,6 +247,7 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
   end
 
   it "writes no LiteLLM row for an id both a retired and a current card name, and reports it" do
+    retired_cards["mistral-nemo-12b-24-07"][0] = %w[open-mistral-nemo mistral-embed]
     card_names.merge!("mistral-nemo-12b-24-07" => %w[open-mistral-nemo mistral-embed],
                       "mathstral-7b-0-1" => %w[mistral-embed])
 
@@ -226,29 +257,46 @@ RSpec.describe LlmCostTracker::Pricing::Scrape::Providers::Litellm do
       .to eq(["- `mistral/mistral-embed`: named on both a retired and a current Mistral model card; not written"])
   end
 
-  it "raises rather than read retirement dates from a reordered column or a row's alternative model" do
-    models_page = fixture("mistral_models.html")
-    swapped = models_page.sub("Deprecation<svg></svg>Retirement", "Retirement<svg></svg>Deprecation")
-    unlinked = models_page.sub(%r{<a href="/models/devstral-2-25-12">(.*?)</a>}, "\\1")
+  it "reads retirements from the page data and raises when it no longer holds the list or an entry's API ids" do
     scrape = ->(page) { mistral_class.new.call(html: mistral_pages.merge(mistral_class::MODELS_SOURCE_URL => page)) }
+    without_ids = fixture("mistral_models.html") + retired_list("devstral-2-25-12" => [nil, "2026-07-31"])
 
-    expect { scrape.call(swapped) }.to raise_error(described_class::Error, /retired models table not found or changed/)
-    expect { scrape.call(unlinked) }.to raise_error(described_class::Error, /retired row without a model card/)
+    expect { scrape.call(fixture("mistral_models.html")) }
+      .to raise_error(described_class::Error, /retired models list not found or changed/)
+    expect { scrape.call(without_ids) }.to raise_error(described_class::Error, /retired models list not found or changed/)
+  end
+
+  it "prices a LiteLLM row whose source names a renamed card through that card's aliases" do
+    old = "mistral-medium-3-5-26-04"
+    new = "mistral-medium-3-5"
+    renamed = ->(page) { page.gsub("/models/#{old}", "/models/#{new}") }
+    pages = mistral_pages.except("#{mistral_class::MODELS_SOURCE_URL}/#{old}").merge(
+      mistral_class::PRICING_SOURCE_URL => renamed.call(mistral_pages.fetch(mistral_class::PRICING_SOURCE_URL)),
+      mistral_class::MODELS_SOURCE_URL => renamed.call(mistral_pages.fetch(mistral_class::MODELS_SOURCE_URL)),
+      "#{mistral_class::MODELS_SOURCE_URL}/#{new}" => card(%w[mistral-medium-3-5 mistral-medium-latest], aliases: [old])
+    )
+
+    models = mistral_class.new.call(html: pages, scraped_at: "2026-10-05T06:00:00Z").models
+
+    expect(models.fetch("mistral-medium-3")).to eq(mistral.fetch("mistral-medium-3"))
   end
 
   it "raises rather than drop an anchor model that a retired card names" do
-    card_names["devstral-2-25-12"] += ["mistral-large-latest"]
+    retired_cards["devstral-2-25-12"][0] += ["mistral-large-latest"]
 
     expect { mistral }.to raise_error(described_class::Error, /anchor models missing from scrape: mistral-large-latest/)
   end
 
-  it "raises when Mistral's retired models table or a model card's API names go missing" do
-    card_url = "#{mistral_class::MODELS_SOURCE_URL}/devstral-2-25-12"
+  it "raises when a card the pricing page lists gives no API ids, and skips a missing card it does not list" do
+    listed = "#{mistral_class::MODELS_SOURCE_URL}/mistral-medium-3-5-26-04"
+    retired = "#{mistral_class::MODELS_SOURCE_URL}/devstral-2-25-12"
 
-    expect { mistral_class.new.call(html: mistral_pages.merge(mistral_class::MODELS_SOURCE_URL => "<html></html>")) }
-      .to raise_error(described_class::Error, /retired models table not found/)
-    expect { mistral_class.new.call(html: mistral_pages.merge(card_url => "<html></html>")) }
-      .to raise_error(described_class::Error, %r{card #{card_url} lists no API names})
+    expect { mistral_class.new.call(html: mistral_pages.merge(listed => "<html></html>")) }
+      .to raise_error(described_class::Error, %r{card #{listed} lists no API names})
+    expect { mistral_class.new.call(html: mistral_pages.except(listed)) }
+      .to raise_error(described_class::Error, %r{card #{listed} lists no API names})
+    expect(mistral_class.new.call(html: mistral_pages.except(retired), scraped_at: "2026-10-05T06:00:00Z").deprecated_models)
+      .to include("devstral-2512", "devstral-latest", "devstral-medium-latest")
   end
 
   describe ".convert" do
