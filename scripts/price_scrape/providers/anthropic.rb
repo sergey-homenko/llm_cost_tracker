@@ -38,7 +38,7 @@ module LlmCostTracker
         FREE_SERVICE_CHARGE_PATTERNS = {
           "web_fetch_request" => /Web fetch usage has no additional charges/i
         }.freeze
-        REGIONAL_PREMIUM_NOTE = /10(?:%| percent) premium over global endpoints.*?Opus 4\.5, and later models/i
+        REGIONAL_PREMIUM_NOTE = /Starting with Claude Sonnet 4\.5, Haiku 4\.5, and Opus 4\.5:.*?10 percent premium/i
         EFFECTIVE_DATE_QUALIFIER =
           /\A(?<name>.+?)\s*(?<boundary>through|starting)\s+(?<date>[A-Z][a-z]+ \d{1,2}, \d{4})\z/
         RETIRED_NOTE = /"name":"([^"]+)","note":\{"kind":"lifecycle","label":"Retired","explanation":"([^"]*)"/
